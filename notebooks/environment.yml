@@ -1,0 +1,14 @@
+name: fyp_notebooks
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - matplotlib
+  - jupyter
+  - notebook
+  - ipykernel
+  - pip
+  - pip:
+    - opencv-python
