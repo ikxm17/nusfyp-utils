@@ -95,7 +95,13 @@ def run_experiment(
     start = time.time()
     try:
         with open(log_file, "w") as f:
-            subprocess.run(cmd, check=True, text=True, stdout=f, stderr=subprocess.STDOUT)
+            proc = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                f.write(line)
+            proc.wait()
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(proc.returncode, cmd)
         status = "success"
     except subprocess.CalledProcessError as e:
         status = f"failed (exit code {e.returncode})"
@@ -143,6 +149,11 @@ def main():
         default=None,
         help="Only run experiments whose name contains this substring",
     )
+    parser.add_argument(
+        "--no-log-index",
+        action="store_true",
+        help="Disable appending _{index} to log filenames",
+    )
     args = parser.parse_args()
 
     # Cleaner logs — nerfstudio uses rich for terminal output
@@ -175,7 +186,7 @@ def main():
 
     results = []
     for i, exp in enumerate(experiments):
-        result = run_experiment(exp, i, len(experiments), log_dir, log_all=True)
+        result = run_experiment(exp, i, len(experiments), log_dir, log_all=not args.no_log_index)
         results.append(result)
 
     print_summary(results)
