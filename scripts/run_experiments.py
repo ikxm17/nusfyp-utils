@@ -73,7 +73,7 @@ def run_experiment(
     index: int,
     total: int,
     log_dir: str,
-    log_all: bool,
+    log_index: bool,
 ) -> dict:
     """Run a single experiment and return a result dict."""
     cmd = build_command(experiment)
@@ -87,10 +87,8 @@ def run_experiment(
     log_subdir.mkdir(parents=True, exist_ok=True)
 
     exp_name = experiment["extra_args"].get("experiment-name", name.replace("/", "-"))
-    if log_all:
-        log_file = log_subdir / f"{exp_name}_{index}.log"
-    else:
-        log_file = log_subdir / f"{exp_name}.log"
+    prefix = f"expt_{index}_" if log_index else ""
+    log_file = log_subdir / f"{prefix}{exp_name}.log"
 
     start = time.time()
     try:
@@ -103,17 +101,19 @@ def run_experiment(
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(proc.returncode, cmd)
         status = "success"
+        final_log = log_subdir / f"SUCCESS_{prefix}{exp_name}.log"
     except subprocess.CalledProcessError as e:
         status = f"failed (exit code {e.returncode})"
-        failed_log = log_subdir / f"{index}_{exp_name}_FAILED_{int(time.time())}.log"
-        shutil.copy2(log_file, failed_log)
-        log_file = failed_log
+        fail_prefix = f"expt_{index}_" if not log_index else prefix
+        final_log = log_subdir / f"FAILED_{fail_prefix}{exp_name}.log"
     except FileNotFoundError:
         status = "failed (ns-train not found)"
-        failed_log = log_subdir / f"{index}_{exp_name}_FAILED_{int(time.time())}.log"
-        if log_file.exists():
-            shutil.copy2(log_file, failed_log)
-            log_file = failed_log
+        fail_prefix = f"expt_{index}_" if not log_index else prefix
+        final_log = log_subdir / f"FAILED_{fail_prefix}{exp_name}.log"
+
+    if log_file.exists():
+        log_file.rename(final_log)
+        log_file = final_log
 
     duration = time.time() - start
     result = {"name": name, "status": status, "duration": duration, "log": str(log_file)}
@@ -150,9 +150,9 @@ def main():
         help="Only run experiments whose name contains this substring",
     )
     parser.add_argument(
-        "--no-log-index",
+        "--log-index",
         action="store_true",
-        help="Disable appending _{index} to log filenames",
+        help="Prefix expt_{index}_ to log filenames",
     )
     args = parser.parse_args()
 
@@ -186,7 +186,7 @@ def main():
 
     results = []
     for i, exp in enumerate(experiments):
-        result = run_experiment(exp, i, len(experiments), log_dir, log_all=not args.no_log_index)
+        result = run_experiment(exp, i, len(experiments), log_dir, log_index=args.log_index)
         results.append(result)
 
     print_summary(results)
