@@ -1,23 +1,19 @@
 # Nerfstudio Environment
 
-Setup files for reproducible nerfstudio environments across machines, supporting both native conda and Docker workflows.
+Setup files for a reproducible nerfstudio conda environment across machines. COLMAP is included in the conda environment, so both `ns-process-data` and `colmap gui` are available after setup.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
 | `setup_env.sh` | Create/update the nerfstudio conda environment |
-| `environment.yml` | Conda environment specification |
-| `container.sh` | Docker container lifecycle management |
-| `compose.yml` | Docker Compose configuration |
-| `Dockerfile` | Docker image definition |
-| `.env` | Docker environment variables |
+| `environment.yml` | Conda environment specification (includes COLMAP) |
 
 ---
 
 ## Conda Setup (setup_env.sh)
 
-Creates a `nerfstudio` conda environment with PyTorch and installs nerfstudio + sea-splatfacto from source. Supports CPU-only and CUDA platforms for use across local (no GPU) and remote (GPU) machines.
+Creates a `nerfstudio` conda environment with PyTorch, COLMAP, and installs nerfstudio + sea-splatfacto from source. Supports CPU-only and CUDA platforms for use across local (no GPU) and remote (GPU) machines.
 
 ### Usage
 
@@ -48,22 +44,4 @@ Creates a `nerfstudio` conda environment with PyTorch and installs nerfstudio + 
 4. Nerfstudio from source (editable mode)
 5. Sea-splatfacto from source (editable mode)
 6. CLI tab completions (`ns-install-cli`)
-
----
-
-## Docker (container.sh)
-
-Simple wrapper for Docker Compose container lifecycle.
-
-### Usage
-
-```bash
-# Start services and enter container shell
-./container.sh start
-
-# Rebuild images and enter container shell
-./container.sh rebuild
-
-# Stop the container
-./container.sh stop
-```
+7. COLMAP (via conda-forge, included in `environment.yml`)
