@@ -24,6 +24,7 @@ local_config.py ──> experiment_config.py ──> run_experiments.py
 read_config.py ──> log_experiments.py       (log generator uses reader to load/compare configs)
 read_config.py ──> eval_experiments.py      (evaluator uses reader + log_experiments for path resolution)
 log_experiments.py ──> eval_experiments.py
+experiment_config.py ──> eval_experiments.py  (config mode uses experiment config for run discovery)
 read_config.py ──> render.py               (renderer uses reader for path resolution)
 change_config_path.py                       (standalone — used manually when moving between machines)
 ```
@@ -225,21 +226,24 @@ The report includes:
 
 ## eval_experiments.py
 
-Batch-evaluates nerfstudio experiment runs using `ns-eval`. Resolves path specs (timestamp directories, method directories, or substrings) to individual runs, then runs evaluation and saves `metrics.json` directly into each run's timestamp directory. Optionally saves rendered evaluation images.
+Batch-evaluates nerfstudio experiment runs using `ns-eval`. Supports two modes: **config mode** (uses `experiment_config.py` to resolve runs, with `--filter` support) and **path mode** (resolves explicit path specs). Saves `metrics.json` directly into each run's timestamp directory. Optionally saves rendered evaluation images.
 
 ### Usage
 
 ```bash
-# Dry run to preview ns-eval commands
-python scripts/eval_experiments.py <path> --dry-run
+# Config mode — evaluate all experiments defined in experiment_config
+python scripts/eval_experiments.py --dry-run
 
-# Evaluate all runs under a method directory
+# Config mode — filter by experiment name substring
+python scripts/eval_experiments.py --filter torpedo --dry-run
+
+# Path mode — evaluate all runs under a method directory
 python scripts/eval_experiments.py ../fyp-playground/outputs/saltpond_unprocessed/saltpond_unprocessed-a_exploration/sea-splatfacto
 
-# Evaluate a single run by timestamp directory
+# Path mode — evaluate a single run by timestamp directory
 python scripts/eval_experiments.py ../fyp-playground/outputs/.../2026-03-08_015758
 
-# Evaluate multiple path specs
+# Path mode — evaluate multiple path specs
 python scripts/eval_experiments.py a_exploration b_exploration --outputs-dir ../fyp-playground/outputs
 
 # Skip runs that already have metrics
@@ -253,8 +257,10 @@ python scripts/eval_experiments.py <path> --render-images
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring) | required |
-| `--outputs-dir <path>` | Base outputs directory for resolution | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring). If omitted, uses config mode. | none |
+| `--config <path>` | Path to config `.py` file or module name (config mode) | `experiment_config` |
+| `--filter <substring>` | Only evaluate experiments whose name contains this substring (config mode only) | none |
+| `--outputs-dir <path>` | Base outputs directory for resolution (path mode) | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
 | `--output-name <name>` | Metrics JSON filename | `metrics.json` |
 | `--render-images` | Also save rendered eval images | off |
 | `--render-dir-name <name>` | Subdirectory for rendered images | `eval_renders` |
@@ -276,6 +282,8 @@ python scripts/eval_experiments.py <path> --render-images
 - `ns-eval` must be on `PATH` (nerfstudio installed)
 - `read_config.py` (path resolution utilities)
 - `log_experiments.py` (`find_runs`, `resolve_experiment_dir`)
+- `experiments/run_experiments.py` (`load_config`, for config mode)
+- `experiments/experiment_config.py` + `experiments/local_config.py` (config mode)
 
 ---
 
