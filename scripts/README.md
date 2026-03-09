@@ -11,6 +11,8 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `experiments/local_config.example.py` | Template for machine-specific settings (copy to `local_config.py`) |
 | `read_config.py` | Read and diff nerfstudio experiment configs |
 | `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
+| `eval_experiments.py` | Batch-run `ns-eval` and save metrics to experiment directories |
+| `render.py` | Render experiments to video (wraps `ns-render` + ffmpeg) |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
 
 ### Script relationships
@@ -20,6 +22,9 @@ local_config.py ──> experiment_config.py ──> run_experiments.py
                     (local settings)         (config defines experiments, runner executes them)
 
 read_config.py ──> log_experiments.py       (log generator uses reader to load/compare configs)
+read_config.py ──> eval_experiments.py      (evaluator uses reader + log_experiments for path resolution)
+log_experiments.py ──> eval_experiments.py
+read_config.py ──> render.py               (renderer uses reader for path resolution)
 change_config_path.py                       (standalone — used manually when moving between machines)
 ```
 
@@ -215,6 +220,149 @@ The report includes:
 
 - `read_config.py` (imported directly)
 - `pyyaml`
+
+---
+
+## eval_experiments.py
+
+Batch-evaluates nerfstudio experiment runs using `ns-eval`. Resolves path specs (timestamp directories, method directories, or substrings) to individual runs, then runs evaluation and saves `metrics.json` directly into each run's timestamp directory. Optionally saves rendered evaluation images.
+
+### Usage
+
+```bash
+# Dry run to preview ns-eval commands
+python scripts/eval_experiments.py <path> --dry-run
+
+# Evaluate all runs under a method directory
+python scripts/eval_experiments.py ../fyp-playground/outputs/saltpond_unprocessed/saltpond_unprocessed-a_exploration/sea-splatfacto
+
+# Evaluate a single run by timestamp directory
+python scripts/eval_experiments.py ../fyp-playground/outputs/.../2026-03-08_015758
+
+# Evaluate multiple path specs
+python scripts/eval_experiments.py a_exploration b_exploration --outputs-dir ../fyp-playground/outputs
+
+# Skip runs that already have metrics
+python scripts/eval_experiments.py <path> --skip-existing
+
+# Also save rendered eval images
+python scripts/eval_experiments.py <path> --render-images
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring) | required |
+| `--outputs-dir <path>` | Base outputs directory for resolution | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--output-name <name>` | Metrics JSON filename | `metrics.json` |
+| `--render-images` | Also save rendered eval images | off |
+| `--render-dir-name <name>` | Subdirectory for rendered images | `eval_renders` |
+| `--skip-existing` | Skip runs that already have a metrics file | off |
+| `--dry-run` | Print commands without executing | off |
+
+### Output placement
+
+```
+<timestamp>/
+  config.yml
+  nerfstudio_models/
+  metrics.json          <-- ns-eval JSON output
+  eval_renders/         <-- optional (--render-images)
+```
+
+### Dependencies
+
+- `ns-eval` must be on `PATH` (nerfstudio installed)
+- `read_config.py` (path resolution utilities)
+- `log_experiments.py` (`find_runs`, `resolve_experiment_dir`)
+
+---
+
+## render.py
+
+Renders nerfstudio experiments to video in one command. Wraps `ns-render` with automatic ffmpeg video conversion and frame cleanup. Supports two modes: **dataset** (ground truth train/test splits for evaluation) and **camera-path** (smooth trajectories from camera path JSONs for visualisation).
+
+### Usage
+
+```bash
+# Render train+test splits (default) for an experiment
+python scripts/render.py dataset a_exploration --outputs-dir ../fyp-playground/outputs
+
+# Render only the test split with rgb and depth outputs
+python scripts/render.py dataset <experiment> --split test --rendered-output-names rgb depth
+
+# Render a camera path trajectory
+python scripts/render.py camera-path <experiment> --camera-path /path/to/trajectory.json
+
+# Render camera path with custom output name and keep frames
+python scripts/render.py camera-path <experiment> --camera-path traj.json --camera-path-name flythrough --keep-frames
+
+# Preview ns-render commands without executing
+python scripts/render.py dataset <experiment> --dry-run
+python scripts/render.py camera-path <experiment> --camera-path traj.json --dry-run
+```
+
+### Arguments
+
+**Shared (both subcommands):**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `experiment` (positional) | Path/spec to experiment (resolved via `read_config.py`) | required |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--output-dir <path>` | Override output directory | `<experiment>/renders/<subcommand>/` |
+| `--rendered-output-names <names...>` | Output names to render | `rgb` |
+| `--fps <n>` | Video frame rate | `30` |
+| `--keep-frames` | Preserve frame images after video creation | off |
+| `--image-format {jpeg,png}` | Image format for frames | `jpeg` |
+| `--jpeg-quality <n>` | JPEG quality 1-100 | `100` |
+| `--downscale-factor <n>` | Resolution downscale factor | `1` |
+| `--dry-run` | Print commands without executing | off |
+
+**`dataset` subcommand:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--split <splits>` | Split(s) to render, `+`-separated | `train+test` |
+
+**`camera-path` subcommand:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--camera-path <file>` | Path to camera path JSON file | required |
+| `--camera-path-name <name>` | Name for output directory | derived from filename |
+
+### Output structure
+
+```
+<timestamp>/renders/
+├── dataset/
+│   ├── test/
+│   │   ├── rgb.mp4
+│   │   └── depth.mp4
+│   └── train/
+│       └── rgb.mp4
+└── camera-path/
+    └── {path-name}/
+        ├── rgb.mp4
+        └── depth.mp4
+```
+
+With `--keep-frames`, original frame directories are preserved alongside the videos.
+
+### How it works
+
+- **Dataset mode**: Runs `ns-render dataset` (always outputs frames), then converts each `{split}/{output_name}/` frame directory to video via ffmpeg concat demuxer
+- **Camera-path mode**: Invokes `ns-render camera-path` once per output name (to avoid side-by-side concatenation). Without `--keep-frames`, renders directly to video. With `--keep-frames`, renders to images then converts via ffmpeg
+
+Safety: frames are never deleted if ffmpeg fails, regardless of `--keep-frames`.
+
+### Dependencies
+
+- `ns-render` must be on `PATH` (nerfstudio installed)
+- `ffmpeg` must be on `PATH` (needed for dataset mode; for camera-path only with `--keep-frames`)
+- `read_config.py` (path resolution utilities)
 
 ---
 
