@@ -37,8 +37,8 @@ python scripts/run_experiments.py --dry-run
 python scripts/run_experiments.py
 
 # 6. Compare configs across runs
-python scripts/config_reader.py diff <run-a> <run-b>
+python scripts/read_config.py diff <run-a> <run-b>
 
 # 7. Generate experiment log
-python scripts/experiment_log.py /path/to/method-dir -o log.txt
+python scripts/log_experiments.py /path/to/method-dir -o log.txt
 ```

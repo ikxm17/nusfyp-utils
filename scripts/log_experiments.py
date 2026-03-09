@@ -1,25 +1,25 @@
 """Generate an experiment log describing runs and their config diffs against a baseline.
 
 Usage:
-    python scripts/experiment_log.py <experiment-dir> [options]
+    python scripts/log_experiments.py <experiment-dir> [options]
 
     # Use the earliest run as baseline (default), log all runs in the directory
-    python scripts/experiment_log.py ../fyp-playground/outputs/saltpond_unprocessed/saltpond_unprocessed-a_exploration/sea-splatfacto
+    python scripts/log_experiments.py ../fyp-playground/outputs/saltpond_unprocessed/saltpond_unprocessed-a_exploration/sea-splatfacto
 
     # Pick a specific baseline by timestamp substring
-    python scripts/experiment_log.py <dir> --baseline 024717
+    python scripts/log_experiments.py <dir> --baseline 024717
 
     # Include extra runs from other directories
-    python scripts/experiment_log.py <dir> --extra ../other-outputs/experiment/method
+    python scripts/log_experiments.py <dir> --extra ../other-outputs/experiment/method
 
     # Write output to a file instead of stdout
-    python scripts/experiment_log.py <dir> -o experiment_log.txt
+    python scripts/log_experiments.py <dir> -o experiment_log.txt
 
     # Only diff the model section (default), or choose optimizers/all
-    python scripts/experiment_log.py <dir> --section model
+    python scripts/log_experiments.py <dir> --section model
 
     # Use a different outputs-dir for path resolution
-    python scripts/experiment_log.py a_exploration --outputs-dir ../fyp-playground/outputs
+    python scripts/log_experiments.py a_exploration --outputs-dir ../fyp-playground/outputs
 """
 
 import argparse
@@ -28,7 +28,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from config_reader import (
+from read_config import (
     _descend_to_config,
     _looks_like_timestamps,
     extract_section,

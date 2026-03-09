@@ -8,15 +8,15 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 |--------|---------|
 | `run_experiments.py` | Batch-run nerfstudio training experiments |
 | `experiment_config.py` | Define experiment matrices (datasets x templates x models x repeats) |
-| `config_reader.py` | Read and diff nerfstudio experiment configs |
-| `experiment_log.py` | Generate experiment logs with config diffs against a baseline |
+| `read_config.py` | Read and diff nerfstudio experiment configs |
+| `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
 
 ### Script relationships
 
 ```
 experiment_config.py ──> run_experiments.py      (config defines experiments, runner executes them)
-config_reader.py ──> experiment_log.py           (log generator uses reader to load/compare configs)
+read_config.py ──> log_experiments.py            (log generator uses reader to load/compare configs)
 change_config_path.py                            (standalone — used manually when moving between machines)
 ```
 
@@ -97,7 +97,7 @@ EXPERIMENTS     # Auto-generated: datasets × templates × repeats × models
 
 ---
 
-## config_reader.py
+## read_config.py
 
 CLI tool for reading and comparing nerfstudio experiment configurations. When running many experiments with different hyperparameters, this helps identify exactly what changed between runs without manually inspecting YAML files.
 
@@ -105,19 +105,19 @@ CLI tool for reading and comparing nerfstudio experiment configurations. When ru
 
 ```bash
 # Read model config for an experiment
-python scripts/config_reader.py read <path> --section model
+python scripts/read_config.py read <path> --section model
 
 # Read a specific parameter
-python scripts/config_reader.py read <path> --param learn-background
+python scripts/read_config.py read <path> --param learn-background
 
 # Diff two configs
-python scripts/config_reader.py diff <path-a> <path-b>
+python scripts/read_config.py diff <path-a> <path-b>
 
 # Diff with custom labels
-python scripts/config_reader.py diff <path-a> <path-b> --name-a "baseline" --name-b "no-seathru"
+python scripts/read_config.py diff <path-a> <path-b> --name-a "baseline" --name-b "no-seathru"
 
 # Use a custom outputs directory
-python scripts/config_reader.py read <path> --outputs-dir /path/to/outputs
+python scripts/read_config.py read <path> --outputs-dir /path/to/outputs
 ```
 
 ### Path resolution
@@ -144,7 +144,7 @@ The script auto-descends the nerfstudio directory hierarchy (`dataset/experiment
 
 ---
 
-## experiment_log.py
+## log_experiments.py
 
 Generates a formatted report comparing all runs in an experiment directory against a baseline. Useful for tracking how hyperparameter changes across repeated runs affect the configuration, making it easier to correlate config differences with result differences.
 
@@ -152,19 +152,19 @@ Generates a formatted report comparing all runs in an experiment directory again
 
 ```bash
 # Log all runs, using the earliest as baseline
-python scripts/experiment_log.py /path/to/method-dir
+python scripts/log_experiments.py /path/to/method-dir
 
 # Pick a specific baseline by timestamp substring
-python scripts/experiment_log.py /path/to/method-dir --baseline 024717
+python scripts/log_experiments.py /path/to/method-dir --baseline 024717
 
 # Include runs from other directories
-python scripts/experiment_log.py /path/to/method-dir --extra /other/method-dir
+python scripts/log_experiments.py /path/to/method-dir --extra /other/method-dir
 
 # Write output to a file
-python scripts/experiment_log.py /path/to/method-dir -o experiment_log.txt
+python scripts/log_experiments.py /path/to/method-dir -o experiment_log.txt
 
 # Diff optimizers instead of model config
-python scripts/experiment_log.py /path/to/method-dir --section optimizers
+python scripts/log_experiments.py /path/to/method-dir --section optimizers
 ```
 
 ### Arguments
@@ -187,7 +187,7 @@ The report includes:
 
 ### Dependencies
 
-- `config_reader.py` (imported directly)
+- `read_config.py` (imported directly)
 - `pyyaml`
 
 ---
