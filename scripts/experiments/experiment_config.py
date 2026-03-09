@@ -1,8 +1,8 @@
 """
 Experiment configuration for nerfstudio training runs.
 
-Shared architecture: datasets, experiment templates, and build loop.
-Machine-specific settings (WORKSPACE_DIR, etc.) live in local_config.py.
+Thin orchestration layer: imports machine-specific settings from local_config.py,
+applies defaults, and builds the EXPERIMENTS list as a cartesian product.
 
 The runner script (run_experiments.py) imports EXPERIMENTS and LOG_DIR from here.
 """
@@ -22,34 +22,20 @@ except ImportError:
         "    cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py"
     )
 
+# ---------------------------------------------------------------------------
+# Required settings (must be defined in local_config.py)
+# ---------------------------------------------------------------------------
 WORKSPACE_DIR = local_config.WORKSPACE_DIR
+DATASETS = local_config.DATASETS
+EXPERIMENT_TEMPLATES = local_config.EXPERIMENT_TEMPLATES
 
 # ---------------------------------------------------------------------------
-# Paths
+# Optional settings (overridable in local_config.py)
 # ---------------------------------------------------------------------------
-DATASETS = {
-    "torpedo_unprocessed": os.path.join(WORKSPACE_DIR, "datasets", "torpedo", "torpedo_unprocessed"),
-    "saltpond_unprocessed": os.path.join(WORKSPACE_DIR, "datasets", "saltpond", "saltpond_unprocessed"),
-}
-
-OUTPUT_DIR = os.path.join(WORKSPACE_DIR, "outputs")
-LOG_DIR = os.path.join(WORKSPACE_DIR, "logs")
-
-# ---------------------------------------------------------------------------
-# Experiment templates — each has a suffix and optional extra CLI args
-# ---------------------------------------------------------------------------
-EXPERIMENT_TEMPLATES = [
-    {
-        "suffix": "repeat_baseline",
-        "extra_args": {},
-    },
-]
-
-# ---------------------------------------------------------------------------
-# Models and repeats (overridable in local_config.py)
-# ---------------------------------------------------------------------------
+OUTPUT_DIR = getattr(local_config, "OUTPUT_DIR", os.path.join(WORKSPACE_DIR, "outputs"))
+LOG_DIR = getattr(local_config, "LOG_DIR", os.path.join(WORKSPACE_DIR, "logs"))
 MODELS = getattr(local_config, "MODELS", ["sea-splatfacto"])
-NUMBER_OF_REPEATS = getattr(local_config, "NUMBER_OF_REPEATS", 3)
+NUMBER_OF_REPEATS = getattr(local_config, "NUMBER_OF_REPEATS", 1)
 
 # ---------------------------------------------------------------------------
 # Build experiment list (datasets x templates x repeats x models)

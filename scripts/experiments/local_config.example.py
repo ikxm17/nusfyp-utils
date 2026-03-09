@@ -7,6 +7,20 @@ Copy to local_config.py and edit:
 
 WORKSPACE_DIR = "/path/to/fyp-playground"
 
-# Optional overrides (uncomment and edit as needed):
+DATASETS = {
+    "torpedo_unprocessed": WORKSPACE_DIR + "/datasets/torpedo/torpedo_unprocessed",
+    "saltpond_unprocessed": WORKSPACE_DIR + "/datasets/saltpond/saltpond_unprocessed",
+}
+
+EXPERIMENT_TEMPLATES = [
+    {
+        "suffix": "baseline",
+        "extra_args": {},
+    },
+]
+
+# Optional overrides:
+# OUTPUT_DIR = WORKSPACE_DIR + "/outputs"
+# LOG_DIR = WORKSPACE_DIR + "/logs"
 # MODELS = ["sea-splatfacto"]
-# NUMBER_OF_REPEATS = 3
+# NUMBER_OF_REPEATS = 1

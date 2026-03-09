@@ -77,24 +77,26 @@ Defines the experiment matrix for `run_experiments.py`. Configures datasets, exp
 ### Structure
 
 ```python
-# From local_config.py:
-WORKSPACE_DIR   # Base path to fyp-playground
+# Required from local_config.py:
+WORKSPACE_DIR          # Base path to fyp-playground
+DATASETS               # Dict mapping dataset names to paths
+EXPERIMENT_TEMPLATES   # List of {suffix, extra_args} dicts
 
-# Shared (tracked):
-DATASETS        # Dict mapping dataset names to paths
-OUTPUT_DIR      # Where nerfstudio writes outputs
-LOG_DIR         # Where runner writes logs
-EXPERIMENT_TEMPLATES  # List of {suffix, extra_args} dicts
-MODELS          # List of model names (default: ["sea-splatfacto"], overridable in local_config)
-NUMBER_OF_REPEATS     # How many times to repeat each combination (default: 3, overridable)
-EXPERIMENTS     # Auto-generated: datasets x templates x repeats x models
+# Optional (overridable in local_config.py):
+OUTPUT_DIR             # Where nerfstudio writes outputs (default: WORKSPACE_DIR/outputs)
+LOG_DIR                # Where runner writes logs (default: WORKSPACE_DIR/logs)
+MODELS                 # List of model names (default: ["sea-splatfacto"])
+NUMBER_OF_REPEATS      # How many times to repeat each combination (default: 1)
+
+# Auto-generated:
+EXPERIMENTS            # datasets x templates x repeats x models
 ```
 
 ### Customization
 
-- Add datasets to the `DATASETS` dict
+- Add datasets to `DATASETS` in `local_config.py`
 - Add experiment variants to `EXPERIMENT_TEMPLATES` with custom `extra_args` (these become `ns-train` CLI flags)
-- Override `MODELS` or `NUMBER_OF_REPEATS` in `local_config.py`
+- Override `OUTPUT_DIR`, `LOG_DIR`, `MODELS`, or `NUMBER_OF_REPEATS` in `local_config.py`
 - Use `--filter` on the runner to select subsets at runtime
 
 ---
@@ -112,8 +114,12 @@ cp scripts/experiments/local_config.example.py scripts/experiments/local_config.
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `WORKSPACE_DIR` | yes | Base path to `fyp-playground` |
-| `MODELS` | no | Override default model list |
-| `NUMBER_OF_REPEATS` | no | Override default repeat count |
+| `DATASETS` | yes | Dict mapping dataset names to paths |
+| `EXPERIMENT_TEMPLATES` | yes | List of `{suffix, extra_args}` dicts |
+| `OUTPUT_DIR` | no | Override default output directory (`WORKSPACE_DIR/outputs`) |
+| `LOG_DIR` | no | Override default log directory (`WORKSPACE_DIR/logs`) |
+| `MODELS` | no | Override default model list (`["sea-splatfacto"]`) |
+| `NUMBER_OF_REPEATS` | no | Override default repeat count (`1`) |
 
 ---
 
