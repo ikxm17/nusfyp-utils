@@ -1,0 +1,6 @@
+name: nerfstudio
+channels:
+  - defaults
+dependencies:
+  - python=3.8
+  - pip
