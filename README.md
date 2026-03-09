@@ -1,6 +1,6 @@
 # fyp-utils
 
-Utility scripts, notebooks, and environment configs for nerfstudio-based FYP experiments. Handles the workflow around training runs — from environment setup and batch execution to config comparison and output visualization.
+Utility scripts, notebooks, and environment configs for nerfstudio-based experiments. Handles the workflow around training runs — from environment setup and batch execution to config comparison and output visualization.
 
 ## Structure
 
