@@ -1,22 +1,22 @@
 """
 Rewrite absolute PosixPath entries in a Nerfstudio config.yml so the
-config can be loaded on a different machine.
+config can be loaded on a different machine. Edits the file in-place.
 
 Usage:
-    python fix_nerfstudio_config.py config.yml --old-base /home/olduser --new-base /home/newuser
-    python fix_nerfstudio_config.py config.yml --old-base /home/olduser  # auto-detects new base as $HOME
+    python change_config_path.py config.yml --old-base /home/olduser --new-base /home/newuser
+    python change_config_path.py config.yml --old-base /home/olduser  # auto-detects new base as $HOME
 
 Examples:
     # Replace /home/saber with /home/alice
-    python fix_nerfstudio_config.py config.yml --old-base /home/saber --new-base /home/alice
+    python change_config_path.py config.yml --old-base /home/saber --new-base /home/alice
 
     # Replace /home/saber with current $HOME, and also remap data path
-    python fix_nerfstudio_config.py config.yml --old-base /home/saber \
+    python change_config_path.py config.yml --old-base /home/saber \
         --old-data /home/islabella/workspaces/irwin_ws/fyp-playground/datasets \
         --new-data /home/alice/datasets
 
-    # In-place edit (overwrites the file)
-    python fix_nerfstudio_config.py config.yml --old-base /home/saber --inplace
+    # Create a .bak backup before editing
+    python change_config_path.py config.yml --old-base /home/saber --backup
 """
 
 import argparse
@@ -33,7 +33,7 @@ def fix_config(
     new_base: str,
     old_data: str | None = None,
     new_data: str | None = None,
-    inplace: bool = False,
+    backup: bool = False,
 ) -> str:
     """
     Read a nerfstudio YAML config and replace path prefixes.
@@ -98,19 +98,14 @@ def fix_config(
 
     result = "".join(output_lines)
 
-    if inplace:
-        backup = config_path + ".bak"
-        shutil.copy2(config_path, backup)
-        with open(config_path, "w") as f:
-            f.write(result)
-        print(f"Updated {config_path} in-place (backup: {backup})", file=sys.stderr)
-    else:
-        out_path = config_path.replace(".yml", "_fixed.yml")
-        if out_path == config_path:
-            out_path = config_path + ".fixed"
-        with open(out_path, "w") as f:
-            f.write(result)
-        print(f"Written to {out_path}", file=sys.stderr)
+    if backup:
+        backup_path = config_path + ".bak"
+        shutil.copy2(config_path, backup_path)
+        print(f"Backup saved to {backup_path}", file=sys.stderr)
+
+    with open(config_path, "w") as f:
+        f.write(result)
+    print(f"Updated {config_path}", file=sys.stderr)
 
     return result
 
@@ -141,9 +136,9 @@ def main():
         help="Optional: new data path prefix",
     )
     parser.add_argument(
-        "--inplace",
+        "--backup",
         action="store_true",
-        help="Edit the file in-place (creates a .bak backup)",
+        help="Create a .bak backup before editing",
     )
 
     args = parser.parse_args()
@@ -156,7 +151,7 @@ def main():
         new_base=new_base,
         old_data=args.old_data,
         new_data=args.new_data,
-        inplace=args.inplace,
+        backup=args.backup,
     )
 
 

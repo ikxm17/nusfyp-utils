@@ -210,8 +210,8 @@ python scripts/change_config_path.py config.yml --old-base /home/saber \
     --old-data /home/islabella/workspaces/irwin_ws/fyp-playground/datasets \
     --new-data /home/alice/datasets
 
-# In-place edit (creates a .bak backup)
-python scripts/change_config_path.py config.yml --old-base /home/saber --inplace
+# Create a .bak backup before editing
+python scripts/change_config_path.py config.yml --old-base /home/saber --backup
 ```
 
 ### Arguments
@@ -223,7 +223,7 @@ python scripts/change_config_path.py config.yml --old-base /home/saber --inplace
 | `--new-base <path>` | New base path prefix | `$HOME` |
 | `--old-data <path>` | Old data path prefix (optional separate mapping) | none |
 | `--new-data <path>` | New data path prefix | none |
-| `--inplace` | Overwrite original file (creates `.bak` backup) | off (writes `_fixed.yml`) |
+| `--backup` | Create a `.bak` backup before editing | off |
 
 ### How it works
 
