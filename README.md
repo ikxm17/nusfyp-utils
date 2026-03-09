@@ -28,13 +28,14 @@ See each directory's README for detailed usage:
 conda activate nerfstudio
 
 # 3. Configure experiments
-#    Edit scripts/experiment_config.py with your datasets and templates
+cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py
+#    Edit scripts/experiments/local_config.py with your WORKSPACE_DIR
 
 # 4. Preview experiment commands
-python scripts/run_experiments.py --dry-run
+python scripts/experiments/run_experiments.py --dry-run
 
 # 5. Run experiments
-python scripts/run_experiments.py
+python scripts/experiments/run_experiments.py
 
 # 6. Compare configs across runs
 python scripts/read_config.py diff <run-a> <run-b>

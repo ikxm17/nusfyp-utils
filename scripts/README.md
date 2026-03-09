@@ -6,8 +6,9 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 
 | Script | Purpose |
 |--------|---------|
-| `run_experiments.py` | Batch-run nerfstudio training experiments |
-| `experiment_config.py` | Define experiment matrices (datasets x templates x models x repeats) |
+| `experiments/run_experiments.py` | Batch-run nerfstudio training experiments |
+| `experiments/experiment_config.py` | Define experiment matrices (datasets x templates x models x repeats) |
+| `experiments/local_config.example.py` | Template for machine-specific settings (copy to `local_config.py`) |
 | `read_config.py` | Read and diff nerfstudio experiment configs |
 | `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
@@ -15,34 +16,36 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 ### Script relationships
 
 ```
-experiment_config.py ──> run_experiments.py      (config defines experiments, runner executes them)
-read_config.py ──> log_experiments.py            (log generator uses reader to load/compare configs)
-change_config_path.py                            (standalone — used manually when moving between machines)
+local_config.py ──> experiment_config.py ──> run_experiments.py
+                    (local settings)         (config defines experiments, runner executes them)
+
+read_config.py ──> log_experiments.py       (log generator uses reader to load/compare configs)
+change_config_path.py                       (standalone — used manually when moving between machines)
 ```
 
 ---
 
-## run_experiments.py
+## experiments/run_experiments.py
 
-Automates batch `ns-train` invocations so you don't have to manually run each training combination. Loads experiment definitions from a config module and executes them sequentially, capturing output to log files prefixed with `SUCCESS_` or `FAILED_`.
+Automates batch `ns-train` invocations so you don't have to manually run each training combination. Loads experiment definitions from a config module and executes them sequentially, capturing output to log files prefixed with `SUCCESS_` or `FAILED_`. Validates that `extra_args` flags are valid ns-train flags before execution.
 
 ### Usage
 
 ```bash
 # Preview all commands without executing
-python scripts/run_experiments.py --dry-run
+python scripts/experiments/run_experiments.py --dry-run
 
 # Run all experiments
-python scripts/run_experiments.py
+python scripts/experiments/run_experiments.py
 
 # Run only experiments whose name contains "torpedo"
-python scripts/run_experiments.py --filter torpedo
+python scripts/experiments/run_experiments.py --filter torpedo
 
 # Use a custom config file
-python scripts/run_experiments.py --config /path/to/my_config.py
+python scripts/experiments/run_experiments.py --config /path/to/my_config.py
 
 # Add experiment index prefix to log filenames
-python scripts/run_experiments.py --log-index
+python scripts/experiments/run_experiments.py --log-index
 ```
 
 ### Arguments
@@ -67,33 +70,50 @@ The config module must export:
 
 ---
 
-## experiment_config.py
+## experiments/experiment_config.py
 
-Defines the experiment matrix for `run_experiments.py`. Configures datasets, experiment templates (hyperparameter variations), models, and repeat counts, then generates the full `EXPERIMENTS` list as a cartesian product.
+Defines the experiment matrix for `run_experiments.py`. Configures datasets, experiment templates (hyperparameter variations), models, and repeat counts, then generates the full `EXPERIMENTS` list as a cartesian product. Machine-specific settings are imported from `local_config.py`.
 
 ### Structure
 
 ```python
+# From local_config.py:
 WORKSPACE_DIR   # Base path to fyp-playground
+
+# Shared (tracked):
 DATASETS        # Dict mapping dataset names to paths
 OUTPUT_DIR      # Where nerfstudio writes outputs
 LOG_DIR         # Where runner writes logs
 EXPERIMENT_TEMPLATES  # List of {suffix, extra_args} dicts
-MODELS          # List of model names (e.g. ["sea-splatfacto"])
-NUMBER_OF_REPEATS     # How many times to repeat each combination
-EXPERIMENTS     # Auto-generated: datasets × templates × repeats × models
+MODELS          # List of model names (default: ["sea-splatfacto"], overridable in local_config)
+NUMBER_OF_REPEATS     # How many times to repeat each combination (default: 3, overridable)
+EXPERIMENTS     # Auto-generated: datasets x templates x repeats x models
 ```
 
 ### Customization
 
 - Add datasets to the `DATASETS` dict
 - Add experiment variants to `EXPERIMENT_TEMPLATES` with custom `extra_args` (these become `ns-train` CLI flags)
-- Uncomment filter lines at the bottom to run subsets
+- Override `MODELS` or `NUMBER_OF_REPEATS` in `local_config.py`
+- Use `--filter` on the runner to select subsets at runtime
 
-### Notes
+---
 
-- Contains hardcoded remote paths — use `change_config_path.py` if adapting for a different machine
-- Commented-out templates (e.g. `no-seathru`) serve as examples for ablation studies
+## experiments/local_config.example.py
+
+Template for machine-specific settings. Copy to `local_config.py` and edit:
+
+```bash
+cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py
+```
+
+### Settings
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `WORKSPACE_DIR` | yes | Base path to `fyp-playground` |
+| `MODELS` | no | Override default model list |
+| `NUMBER_OF_REPEATS` | no | Override default repeat count |
 
 ---
 

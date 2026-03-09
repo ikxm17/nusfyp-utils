@@ -3,21 +3,22 @@ Run nerfstudio training experiments defined in a config file.
 
 Usage:
     # Preview all commands without executing
-    python scripts/run_experiments.py --dry-run
+    python scripts/experiments/run_experiments.py --dry-run
 
     # Run all experiments
-    python scripts/run_experiments.py
+    python scripts/experiments/run_experiments.py
 
     # Run only experiments whose name contains "torpedo"
-    python scripts/run_experiments.py --filter torpedo
+    python scripts/experiments/run_experiments.py --filter torpedo
 
     # Use a custom config file
-    python scripts/run_experiments.py --config /path/to/my_config.py
+    python scripts/experiments/run_experiments.py --config /path/to/my_config.py
 """
 
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import importlib
 import os
 import shutil
@@ -42,6 +43,48 @@ def load_config(config_path: str):
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         module_name = config_path
     return importlib.import_module(module_name)
+
+
+def validate_extra_args(experiments: list[dict]) -> list[str]:
+    """Check that extra_args keys are valid ns-train flags. Returns warnings."""
+    try:
+        from nerfstudio.configs.method_configs import all_methods
+    except ImportError:
+        return ["nerfstudio not importable — skipping flag validation"]
+
+    warnings = []
+    checked: set[tuple[str, str]] = set()
+
+    for exp in experiments:
+        model = exp["model"]
+        if model not in all_methods:
+            warnings.append(f"Unknown model: {model}")
+            continue
+
+        config = all_methods[model]
+        for flag in exp.get("extra_args", {}):
+            if (model, flag) in checked:
+                continue
+            checked.add((model, flag))
+
+            parts = flag.split(".")
+            current = config
+            valid = True
+            for part in parts:
+                attr = part.replace("-", "_")
+                if not dataclasses.is_dataclass(type(current)):
+                    valid = False
+                    break
+                field_names = {f.name for f in dataclasses.fields(type(current))}
+                if attr not in field_names:
+                    valid = False
+                    break
+                current = getattr(current, attr)
+
+            if not valid:
+                warnings.append(f"  {exp['name']}: --{flag} not found for model '{model}'")
+
+    return warnings
 
 
 def build_command(experiment: dict) -> list[str]:
@@ -126,7 +169,7 @@ def print_summary(results: list[dict]) -> None:
     print(f"\n{'Experiment':<40} {'Status':<25} {'Duration':>10}")
     print("-" * 75)
     for r in results:
-        dur = f"{r['duration'] / 60:.1f} min" if r["duration"] > 0 else "—"
+        dur = f"{r['duration'] / 60:.1f} min" if r["duration"] > 0 else "\u2014"
         print(f"{r['name']:<40} {r['status']:<25} {dur:>10}")
 
 
@@ -173,6 +216,14 @@ def main():
 
     if args.filter:
         experiments = [e for e in experiments if args.filter in e["name"]]
+
+    # Validate extra_args flags
+    warnings = validate_extra_args(experiments)
+    if warnings:
+        print("\nFlag validation:")
+        for w in warnings:
+            print(f"  {w}")
+        print()
 
     print(f"Running {len(experiments)} experiments {'(dry run)' if args.dry_run else ''}\n")
 
