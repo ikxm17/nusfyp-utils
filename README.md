@@ -22,7 +22,7 @@ See each directory's README for detailed usage:
 
 ```bash
 # 1. Set up the environment
-./environments/nerfstudio/setup_env.sh --platform cpu
+./environments/nerfstudio/setup_env.sh --platform cpu|cu118|cu121
 
 # 2. Activate
 conda activate nerfstudio
