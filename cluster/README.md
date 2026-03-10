@@ -7,11 +7,12 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | File | Purpose |
 |------|---------|
 | `nerfstudio.def` | Apptainer container definition (CUDA 11.8 + nerfstudio + sea-splatfacto) |
-| `train.pbs` | PBS job script for training (`run_experiments.py`) |
-| `eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
-| `submit.sh` | Convenience wrapper to submit train→eval dependency chain |
-| `sync_results.sh` | **Runs locally** — rsync results from cluster + rewrite config paths |
 | `local_config.cluster.py` | Template for cluster's `local_config.py` |
+| `jobs/train.pbs` | PBS job script for training (`run_experiments.py`) |
+| `jobs/train_array.pbs` | PBS array job script — one experiment per sub-job |
+| `jobs/eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
+| `scripts/submit.sh` | Convenience wrapper to submit train→eval dependency chain |
+| `scripts/sync_results.sh` | **Runs locally** — rsync results + logs from cluster, rewrite config paths |
 
 ## Cluster Layout
 
@@ -57,23 +58,40 @@ cp cluster/local_config.cluster.py scripts/experiments/local_config.py
 
 ## Usage
 
-### Submit training + eval
+### Submit training + eval (sequential)
 
 ```bash
 cd ~/workspace/fyp/fyp-utils
 
 # Submit both jobs (eval depends on training success)
-./cluster/submit.sh
+./cluster/scripts/submit.sh
 
 # Training only
-./cluster/submit.sh --train-only
+./cluster/scripts/submit.sh --train-only
 
 # Filter specific datasets
-./cluster/submit.sh --filter torpedo
+./cluster/scripts/submit.sh --filter torpedo
 
 # Check job status
 qstat -u $USER
 ```
+
+### Submit training in parallel (array jobs)
+
+Each experiment runs as a separate PBS sub-job with its own GPU:
+
+```bash
+# Submit all experiments in parallel (1 GPU per experiment)
+./cluster/scripts/submit.sh --parallel
+
+# Parallel + filter
+./cluster/scripts/submit.sh --parallel --filter torpedo
+
+# Parallel, training only
+./cluster/scripts/submit.sh --parallel --train-only
+```
+
+PBS auto-schedules sub-jobs within the cluster's concurrent job limit (up to 8 with 1 GPU each).
 
 ### Sync results locally
 
@@ -82,11 +100,11 @@ Run on your **local machine**:
 ```bash
 cd ~/workspace/fyp/fyp-utils
 
-# Sync metrics and configs (excludes checkpoints + tensorboard events)
-./cluster/sync_results.sh
+# Sync outputs + logs (excludes checkpoints + tensorboard events)
+./cluster/scripts/sync_results.sh
 
 # Include checkpoints (for runs you want to render)
-./cluster/sync_results.sh --include-checkpoints
+./cluster/scripts/sync_results.sh --include-checkpoints
 ```
 
 ## How Editability Works
@@ -106,8 +124,10 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 
 | Job | GPUs | CPUs | Memory | Walltime |
 |-----|------|------|--------|----------|
-| `train.pbs` | 1x A40 | 4 | 32GB | 4h |
-| `eval.pbs` | 1x A40 | 2 | 16GB | 1h |
+| `train.pbs` / `train_array.pbs` | 1x A40 | 4 | 32GB | 12h |
+| `eval.pbs` | 1x A40 | 2 | 16GB | 4h |
+
+Queue limits: max walltime 12h, max 2x A40 GPUs per job, up to 8 concurrent jobs at 1 GPU each.
 
 ## Dependencies
 

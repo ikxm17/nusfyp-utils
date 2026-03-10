@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N ns-eval
 #PBS -l select=1:ngpus=1:ncpus=2:mem=16gb
-#PBS -l walltime=01:00:00
+#PBS -l walltime=04:00:00
 #PBS -j oe
 #PBS -o /scratch/e0908336/fyp-playground/logs/eval.log
 

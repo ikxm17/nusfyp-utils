@@ -5,8 +5,8 @@
 # tensorboard event files), then rewrites config.yml paths for local use.
 #
 # Usage:
-#   ./cluster/sync_results.sh                        # Sync metrics + configs only
-#   ./cluster/sync_results.sh --include-checkpoints  # Also sync checkpoint files
+#   ./cluster/scripts/sync_results.sh                        # Sync metrics + configs only
+#   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
 #
 # Prerequisites:
 #   - SSH key or password access to vanda.nus.edu.sg as e0908336
@@ -14,7 +14,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Cluster connection
 CLUSTER_USER="e0908336"
@@ -59,6 +59,18 @@ rsync -avz --progress \
     "${EXCLUDES[@]}" \
     "${CLUSTER_REMOTE}:${REMOTE_OUTPUTS}" \
     "$LOCAL_OUTPUTS"
+
+# Sync training logs (SUCCESS_*.log, FAILED_*.log)
+REMOTE_LOGS="/scratch/${CLUSTER_USER}/fyp-playground/logs/"
+LOCAL_LOGS="${LOCAL_PLAYGROUND}/logs/"
+
+echo ""
+echo "==> Syncing logs from ${CLUSTER_REMOTE}:${REMOTE_LOGS}"
+echo "    to ${LOCAL_LOGS}"
+
+mkdir -p "$LOCAL_LOGS"
+
+rsync -avz --progress "${CLUSTER_REMOTE}:${REMOTE_LOGS}" "$LOCAL_LOGS"
 
 echo ""
 echo "==> Rewriting paths in config.yml files..."

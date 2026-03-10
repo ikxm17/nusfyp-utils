@@ -197,7 +197,30 @@ def main():
         action="store_true",
         help="Prefix expt_{index}_ to log filenames",
     )
+    parser.add_argument(
+        "--index",
+        type=int,
+        default=None,
+        help="Run only the experiment at this 0-based index (applied after --filter)",
+    )
+    parser.add_argument(
+        "--count",
+        action="store_true",
+        help="Print the number of experiments and exit",
+    )
     args = parser.parse_args()
+
+    # Load config early so --count can exit before startup info
+    config = load_config(args.config)
+    experiments = config.EXPERIMENTS
+    log_dir = config.LOG_DIR
+
+    if args.filter:
+        experiments = [e for e in experiments if args.filter in e["name"]]
+
+    if args.count:
+        print(len(experiments))
+        return
 
     # Cleaner logs — nerfstudio uses rich for terminal output
     os.environ["NO_COLOR"] = "1"
@@ -209,13 +232,15 @@ def main():
     print(f"Python: {sys.executable}")
     print(f"ns-train found: {shutil.which('ns-train')}")
 
-    # Load config
-    config = load_config(args.config)
-    experiments = config.EXPERIMENTS
-    log_dir = config.LOG_DIR
-
-    if args.filter:
-        experiments = [e for e in experiments if args.filter in e["name"]]
+    if args.index is not None:
+        if args.index < 0 or args.index >= len(experiments):
+            print(
+                f"Error: --index {args.index} out of range "
+                f"(0-{len(experiments) - 1}, {len(experiments)} experiments)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        experiments = [experiments[args.index]]
 
     # Validate extra_args flags
     warnings = validate_extra_args(experiments)
