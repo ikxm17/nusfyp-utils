@@ -34,6 +34,10 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     export PATH="/opt/conda/bin:$PATH"
     conda init bash
 
+    # Disable conda plugins — the anaconda-tos plugin requires an interactive
+    # terminal to accept ToS, which is unavailable during container builds
+    export CONDA_NO_PLUGINS=true
+
     # Compile CUDA kernels optimized for A40 (Ampere, compute capability 8.6)
     export TORCH_CUDA_ARCH_LIST="8.6"
 
