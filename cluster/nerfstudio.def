@@ -9,6 +9,7 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     # Create mount points expected by the host's Apptainer bind-path config
     # Must be in %setup (not %post) so they exist before bind mounts are applied
     mkdir -p ${APPTAINER_ROOTFS}/app1
+    mkdir -p ${APPTAINER_ROOTFS}/scratch
 
 %files
     fyp-utils/environments/nerfstudio /opt/env
