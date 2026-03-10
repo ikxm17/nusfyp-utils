@@ -1,6 +1,6 @@
 #!/bin/bash
 #PBS -N ns-train
-#PBS -l select=1:ngpus=1:ncpus=72:mem=256gb
+#PBS -l select=1:ngpus=1:ncpus=36:mem=128gb
 #PBS -l walltime=12:00:00
 #PBS -j oe
 #PBS -o /scratch/e0908336/fyp-playground/logs/train_array.log
