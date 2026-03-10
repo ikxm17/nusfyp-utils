@@ -11,6 +11,9 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     nerfstudio                        /opt/nerfstudio
 
 %post
+    # Create mount points expected by the host's Apptainer bind-path config
+    mkdir -p /app1
+
     # System packages
     export DEBIAN_FRONTEND=noninteractive
     apt-get update && apt-get install -y --no-install-recommends \

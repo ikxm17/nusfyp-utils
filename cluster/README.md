@@ -53,7 +53,7 @@ Build from the parent workspace directory so relative `%files` paths resolve:
 
 ```bash
 cd ~/workspace/fyp
-apptainer build --no-mount bind-path containers/nerfstudio.sif fyp-utils/cluster/nerfstudio.def
+apptainer build containers/nerfstudio.sif fyp-utils/cluster/nerfstudio.def
 ```
 
 Takes ~15-30 min (CUDA kernel compilation). No GPU required — `nvcc` comes from the base image.
