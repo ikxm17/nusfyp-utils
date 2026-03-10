@@ -44,7 +44,7 @@ from run_experiments import load_config
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}$")
 
 # Metrics to display (in order). Mean values only, skip std columns.
-DISPLAY_METRICS = ["psnr", "ssim", "lpips"]
+DISPLAY_METRICS = ["psnr", "clean_psnr", "ssim", "lpips"]
 
 
 def read_metrics(metrics_path):
@@ -63,7 +63,7 @@ def format_metrics(metrics):
     parts = []
     for key in DISPLAY_METRICS:
         if key in metrics:
-            parts.append(f"{key.upper()}: {metrics[key]:.4f}")
+            parts.append(f"{key.replace('_', ' ').upper()}: {metrics[key]:.4f}")
     # Include any remaining non-std metrics not in the display list
     for key, val in metrics.items():
         if key not in DISPLAY_METRICS and not key.endswith("_std") and isinstance(val, (int, float)):
@@ -197,7 +197,7 @@ def print_summary(results):
     has_metrics = any(r.get("metrics") for r in results)
 
     if has_metrics:
-        metric_headers = [m.upper() for m in DISPLAY_METRICS]
+        metric_headers = [m.replace("_", " ").upper() for m in DISPLAY_METRICS]
         metric_hdr = "".join(f" {h:>8}" for h in metric_headers)
         print(f"\n{'Run':<50} {'Status':<15} {'Duration':>8}{metric_hdr}")
         print("-" * (73 + 9 * len(DISPLAY_METRICS)))
