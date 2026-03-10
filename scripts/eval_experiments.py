@@ -24,6 +24,7 @@ Usage:
 """
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -41,6 +42,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "experiments"))
 from run_experiments import load_config
 
 TIMESTAMP_RE = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{6}$")
+
+# Metrics to display (in order). Mean values only, skip std columns.
+DISPLAY_METRICS = ["psnr", "ssim", "lpips"]
+
+
+def read_metrics(metrics_path):
+    """Read metrics from a saved ns-eval JSON file. Returns the results dict or None."""
+    try:
+        data = json.loads(metrics_path.read_text())
+        return data.get("results", {})
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def format_metrics(metrics):
+    """Format a metrics dict into a compact one-line string for display."""
+    if not metrics:
+        return ""
+    parts = []
+    for key in DISPLAY_METRICS:
+        if key in metrics:
+            parts.append(f"{key.upper()}: {metrics[key]:.4f}")
+    # Include any remaining non-std metrics not in the display list
+    for key, val in metrics.items():
+        if key not in DISPLAY_METRICS and not key.endswith("_std") and isinstance(val, (int, float)):
+            parts.append(f"{key}: {val:.4f}")
+    return "  |  ".join(parts)
 
 
 def resolve_runs_from_config(experiments):
@@ -153,7 +181,10 @@ def run_eval(run_dir, output_name, render_images, render_dir_name):
                 "duration": duration,
             }
 
-        return {"label": label, "status": "success", "duration": duration}
+        # Read back saved metrics
+        metrics_path = run_dir / output_name
+        metrics = read_metrics(metrics_path)
+        return {"label": label, "status": "success", "duration": duration, "metrics": metrics}
 
     except FileNotFoundError:
         duration = time.time() - start
@@ -162,11 +193,30 @@ def run_eval(run_dir, output_name, render_images, render_dir_name):
 
 def print_summary(results):
     """Print a summary table of evaluation results."""
-    print(f"\n{'Run':<50} {'Status':<25} {'Duration':>10}")
-    print("-" * 85)
-    for r in results:
-        dur = f"{r['duration']:.1f}s" if r["duration"] > 0 else "\u2014"
-        print(f"{r['label']:<50} {r['status']:<25} {dur:>10}")
+    # Check if any results have metrics to determine table layout
+    has_metrics = any(r.get("metrics") for r in results)
+
+    if has_metrics:
+        metric_headers = [m.upper() for m in DISPLAY_METRICS]
+        metric_hdr = "".join(f" {h:>8}" for h in metric_headers)
+        print(f"\n{'Run':<50} {'Status':<15} {'Duration':>8}{metric_hdr}")
+        print("-" * (73 + 9 * len(DISPLAY_METRICS)))
+        for r in results:
+            dur = f"{r['duration']:.1f}s" if r["duration"] > 0 else "\u2014"
+            metrics = r.get("metrics", {}) or {}
+            metric_vals = ""
+            for key in DISPLAY_METRICS:
+                if key in metrics:
+                    metric_vals += f" {metrics[key]:>8.4f}"
+                else:
+                    metric_vals += f" {'—':>8}"
+            print(f"{r['label']:<50} {r['status']:<15} {dur:>8}{metric_vals}")
+    else:
+        print(f"\n{'Run':<50} {'Status':<25} {'Duration':>10}")
+        print("-" * 85)
+        for r in results:
+            dur = f"{r['duration']:.1f}s" if r["duration"] > 0 else "\u2014"
+            print(f"{r['label']:<50} {r['status']:<25} {dur:>10}")
 
 
 def main():
@@ -288,6 +338,8 @@ def main():
         result = run_eval(run_dir, args.output_name, args.render_images, args.render_dir_name)
         results.append(result)
         print(f"  -> {result['status']} ({result['duration']:.1f}s)")
+        if result.get("metrics"):
+            print(f"     {format_metrics(result['metrics'])}")
 
     if not args.dry_run and results:
         print_summary(results)

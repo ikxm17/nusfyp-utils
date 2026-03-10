@@ -226,7 +226,7 @@ The report includes:
 
 ## eval_experiments.py
 
-Batch-evaluates nerfstudio experiment runs using `ns-eval`. Supports two modes: **config mode** (uses `experiment_config.py` to resolve runs, with `--filter` support) and **path mode** (resolves explicit path specs). Saves `metrics.json` directly into each run's timestamp directory. Optionally saves rendered evaluation images.
+Batch-evaluates nerfstudio experiment runs using `ns-eval`. Supports two modes: **config mode** (uses `experiment_config.py` to resolve runs, with `--filter` support) and **path mode** (resolves explicit path specs). Saves `metrics.json` directly into each run's timestamp directory, and prints computed metrics (PSNR, SSIM, LPIPS) to stdout after each run and in a summary table. Optionally saves rendered evaluation images.
 
 ### Usage
 
