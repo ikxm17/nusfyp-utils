@@ -1,0 +1,52 @@
+Bootstrap: docker
+From: nvidia/cuda:11.8.0-devel-ubuntu22.04
+
+%labels
+    Author e0908336
+    Description Nerfstudio + sea-splatfacto training environment for Vanda HPC
+
+%files
+    fyp-utils/environments/nerfstudio /opt/env
+    sea-splatfacto                    /opt/sea-splatfacto
+    nerfstudio                        /opt/nerfstudio
+
+%post
+    # System packages
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update && apt-get install -y --no-install-recommends \
+        git \
+        build-essential \
+        ffmpeg \
+        wget \
+        ca-certificates \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install Miniconda
+    wget -qO /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    bash /tmp/miniconda.sh -b -p /opt/conda
+    rm /tmp/miniconda.sh
+    export PATH="/opt/conda/bin:$PATH"
+    conda init bash
+
+    # Compile CUDA kernels optimized for A40 (Ampere, compute capability 8.6)
+    export TORCH_CUDA_ARCH_LIST="8.6"
+
+    # Run the existing setup script — creates the nerfstudio conda env with
+    # PyTorch, CUDA toolkit, tiny-cuda-nn, nerfstudio, and sea-splatfacto
+    cd /opt/env
+    bash setup_env.sh --platform cu118 \
+        --nerfstudio /opt/nerfstudio \
+        --sea-splatfacto /opt/sea-splatfacto
+
+    # Cleanup to reduce image size
+    /opt/conda/bin/conda clean --all --yes
+    /opt/conda/envs/nerfstudio/bin/pip cache purge
+    rm -rf /opt/sea-splatfacto/.git /opt/nerfstudio/.git
+
+%environment
+    export PATH="/opt/conda/envs/nerfstudio/bin:/opt/conda/bin:$PATH"
+    export CONDA_DEFAULT_ENV=nerfstudio
+    export CONDA_PREFIX=/opt/conda/envs/nerfstudio
+
+%runscript
+    exec "$@"
