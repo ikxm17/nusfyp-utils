@@ -14,19 +14,35 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | `scripts/submit.sh` | Convenience wrapper to submit train→eval dependency chain |
 | `scripts/sync_results.sh` | **Runs locally** — rsync results + logs from cluster, rewrite config paths |
 
-## Cluster Layout
+## Workspace Layout
+
+The PBS job scripts hardcode paths that assume the directory structure below.
+
+### Cluster layout (assumed by PBS jobs)
 
 ```
-/home/svu/e0908336/workspace/fyp/
+$HOME/workspace/fyp/
 ├── fyp-utils/                     # This repo
-├── sea-splatfacto/                # Bind-mounted into container at runtime
-├── nerfstudio/                    # Bind-mounted into container at runtime
-└── containers/nerfstudio.sif      # Built container image (~8-10GB)
+├── sea-splatfacto/                # Bind-mounted into container
+├── nerfstudio/                    # Bind-mounted into container
+└── containers/
+    └── nerfstudio.sif             # Built container image
 
-/scratch/e0908336/fyp-playground/
-├── datasets/                      # Training data (rsync from local)
+/scratch/$USER/fyp-playground/
+├── datasets/                      # Training data
 ├── outputs/                       # Training outputs
-└── logs/                          # PBS job logs
+└── logs/                          # Job + training logs
+```
+
+### Local layout (assumed by `sync_results.sh`)
+
+```
+~/workspace/fyp/
+├── fyp-utils/                     # This repo
+└── fyp-playground/                # Sibling directory — sync target
+    ├── datasets/
+    ├── outputs/                   # Synced from cluster
+    └── logs/                      # Synced from cluster
 ```
 
 ## Setup
@@ -91,7 +107,7 @@ Each experiment runs as a separate PBS sub-job with its own GPU:
 ./cluster/scripts/submit.sh --parallel --train-only
 ```
 
-PBS auto-schedules sub-jobs within the cluster's concurrent job limit (up to 8 with 1 GPU each).
+PBS auto-schedules sub-jobs within the cluster's concurrent job limit (max 4 concurrent jobs).
 
 ### Sync results locally
 
@@ -124,10 +140,10 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 
 | Job | GPUs | CPUs | Memory | Walltime |
 |-----|------|------|--------|----------|
-| `train.pbs` / `train_array.pbs` | 1x A40 | 4 | 32GB | 12h |
+| `train.pbs` / `train_array.pbs` | 1x A40 | 72 | 32GB | 12h |
 | `eval.pbs` | 1x A40 | 2 | 16GB | 4h |
 
-Queue limits: max walltime 12h, max 2x A40 GPUs per job, up to 8 concurrent jobs at 1 GPU each.
+Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per job, max 4 concurrent jobs.
 
 ## Dependencies
 
