@@ -24,3 +24,5 @@ EXPERIMENT_TEMPLATES = [
 # LOG_DIR = WORKSPACE_DIR + "/logs"
 # MODELS = ["sea-splatfacto"]
 # NUMBER_OF_REPEATS = 1
+# VIS = "viewer+tensorboard"   # or "tensorboard" for headless
+# VIEWER = False

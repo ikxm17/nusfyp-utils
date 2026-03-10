@@ -36,6 +36,8 @@ OUTPUT_DIR = getattr(local_config, "OUTPUT_DIR", os.path.join(WORKSPACE_DIR, "ou
 LOG_DIR = getattr(local_config, "LOG_DIR", os.path.join(WORKSPACE_DIR, "logs"))
 MODELS = getattr(local_config, "MODELS", ["sea-splatfacto"])
 NUMBER_OF_REPEATS = getattr(local_config, "NUMBER_OF_REPEATS", 1)
+VIS = getattr(local_config, "VIS", "viewer+tensorboard")
+VIEWER = getattr(local_config, "VIEWER", False)
 
 # ---------------------------------------------------------------------------
 # Build experiment list (datasets x templates x repeats x models)
@@ -50,8 +52,8 @@ for dataset_name, dataset_path in DATASETS.items():
                     "model": model,
                     "data": dataset_path,
                     "output_dir": os.path.join(OUTPUT_DIR, dataset_name),
-                    "vis": "viewer+tensorboard",
-                    "viewer": False,
+                    "vis": VIS,
+                    "viewer": VIEWER,
                     "extra_args": {
                         "experiment-name": f"{dataset_name}-{template['suffix']}",
                         **template["extra_args"],
