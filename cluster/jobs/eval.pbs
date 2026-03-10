@@ -15,6 +15,9 @@ OUTPUTS=/scratch/$USER/fyp-playground/outputs
 echo "==> Job $PBS_JOBID started at $(date)"
 echo "==> Node: $(hostname)"
 
+# Copy cluster local_config into experiments directory
+cp "$FYP_UTILS/cluster/local_config.py" "$FYP_UTILS/scripts/experiments/local_config.py"
+
 apptainer exec --nv \
     --bind $HOME/workspace/fyp/sea-splatfacto:/opt/sea-splatfacto \
     --bind $HOME/workspace/fyp/nerfstudio:/opt/nerfstudio \

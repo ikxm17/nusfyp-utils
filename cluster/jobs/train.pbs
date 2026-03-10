@@ -18,6 +18,9 @@ echo "==> GPU:  $(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null 
 # Create log directory
 mkdir -p /scratch/$USER/fyp-playground/logs
 
+# Copy cluster local_config into experiments directory
+cp "$FYP_UTILS/cluster/local_config.py" "$FYP_UTILS/scripts/experiments/local_config.py"
+
 apptainer exec --nv \
     --bind $HOME/workspace/fyp/sea-splatfacto:/opt/sea-splatfacto \
     --bind $HOME/workspace/fyp/nerfstudio:/opt/nerfstudio \

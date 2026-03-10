@@ -7,7 +7,7 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | File | Purpose |
 |------|---------|
 | `nerfstudio.def` | Apptainer container definition (CUDA 11.8 + nerfstudio + sea-splatfacto) |
-| `local_config.cluster.py` | Template for cluster's `local_config.py` |
+| `local_config.example.py` | Template for cluster's `local_config.py` (gitignored) |
 | `jobs/train.pbs` | PBS job script for training (`run_experiments.py`) |
 | `jobs/train_array.pbs` | PBS array job script — one experiment per sub-job |
 | `jobs/eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
@@ -68,9 +68,11 @@ rsync -avz local_machine:~/workspace/fyp/fyp-playground/datasets/ /scratch/$USER
 ### 3. Configure local_config
 
 ```bash
-cp cluster/local_config.cluster.py scripts/experiments/local_config.py
+cp cluster/local_config.example.py cluster/local_config.py
 # Edit if needed (datasets, templates, etc.)
 ```
+
+PBS scripts automatically copy `cluster/local_config.py` into `scripts/experiments/` at job start.
 
 ## Usage
 

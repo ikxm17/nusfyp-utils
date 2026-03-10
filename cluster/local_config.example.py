@@ -1,4 +1,9 @@
-"""Machine-specific settings for Vanda HPC cluster."""
+"""
+Machine-specific settings for Vanda HPC cluster.
+
+Copy to local_config.py and edit:
+    cp cluster/local_config.example.py cluster/local_config.py
+"""
 import os
 
 USERID = os.environ.get("USER", "e0908336")
