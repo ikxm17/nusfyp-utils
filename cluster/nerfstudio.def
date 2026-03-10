@@ -5,15 +5,17 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     Author Irwin
     Description nerfstudio + sea-splatfacto training environment for Vanda HPC
 
+%setup
+    # Create mount points expected by the host's Apptainer bind-path config
+    # Must be in %setup (not %post) so they exist before bind mounts are applied
+    mkdir -p ${APPTAINER_ROOTFS}/app1
+
 %files
     fyp-utils/environments/nerfstudio /opt/env
     sea-splatfacto                    /opt/sea-splatfacto
     nerfstudio                        /opt/nerfstudio
 
 %post
-    # Create mount points expected by the host's Apptainer bind-path config
-    mkdir -p /app1
-
     # System packages
     export DEBIAN_FRONTEND=noninteractive
     apt-get update && apt-get install -y --no-install-recommends \
