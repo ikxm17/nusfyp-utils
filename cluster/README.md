@@ -140,7 +140,7 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 
 | Job | GPUs | CPUs | Memory | Walltime |
 |-----|------|------|--------|----------|
-| `train.pbs` / `train_array.pbs` | 1x A40 | 72 | 32GB | 12h |
+| `train.pbs` / `train_array.pbs` | 1x A40 | 72 | 256GB | 12h |
 | `eval.pbs` | 1x A40 | 2 | 16GB | 4h |
 
 Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per job, max 4 concurrent jobs.
