@@ -13,6 +13,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
 | `eval_experiments.py` | Batch-run `ns-eval` and save metrics to experiment directories |
 | `render.py` | Render experiments to video (wraps `ns-render` + ffmpeg) |
+| `render_experiments.py` | Batch-render multiple experiments (wraps `render.py` for all runs) |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
 
 ### Script relationships
@@ -26,6 +27,9 @@ read_config.py ──> eval_experiments.py      (evaluator uses reader + log_exp
 log_experiments.py ──> eval_experiments.py
 experiment_config.py ──> eval_experiments.py  (config mode uses experiment config for run discovery)
 read_config.py ──> render.py               (renderer uses reader for path resolution)
+render.py ──> render_experiments.py         (batch renderer imports render.py functions)
+eval_experiments.py ──> render_experiments.py  (batch renderer reuses run resolution logic)
+experiment_config.py ──> render_experiments.py  (config mode uses experiment config for run discovery)
 change_config_path.py                       (standalone — used manually when moving between machines)
 ```
 
@@ -371,6 +375,93 @@ Safety: frames are never deleted if ffmpeg fails, regardless of `--keep-frames`.
 - `ns-render` must be on `PATH` (nerfstudio installed)
 - `ffmpeg` must be on `PATH` (needed for dataset mode; for camera-path only with `--keep-frames`)
 - `read_config.py` (path resolution utilities)
+
+---
+
+## render_experiments.py
+
+Batch-renders multiple nerfstudio experiments in one invocation. Wraps `render.py` to process all runs matching a path spec or experiment config. Follows the same dual-mode pattern as `eval_experiments.py`: **config mode** (uses `experiment_config.py` to resolve runs, with `--filter`) and **path mode** (explicit path specs). Supports both dataset and camera-path render types, with skip-existing detection so re-running after partial completions only renders what's missing.
+
+### Usage
+
+```bash
+# Config mode — preview renders for all experiments
+python scripts/render_experiments.py --dry-run
+
+# Config mode — filter by experiment name
+python scripts/render_experiments.py --filter saltpond --dry-run
+
+# Path mode — render all runs under a method directory
+python scripts/render_experiments.py ../fyp-playground/outputs/saltpond_unprocessed/saltpond_unprocessed-a_exploration/sea-splatfacto \
+  --outputs-dir ../fyp-playground/outputs
+
+# Path mode — render multiple experiment specs
+python scripts/render_experiments.py a_exploration b_exploration --outputs-dir ../fyp-playground/outputs
+
+# Render camera paths (auto-discovers from datasets/{group}/camera_paths/)
+python scripts/render_experiments.py a_exploration --render-type camera-path --outputs-dir ../fyp-playground/outputs
+
+# Render camera paths with explicit path
+python scripts/render_experiments.py a_exploration --render-type camera-path \
+  --camera-path ../fyp-playground/datasets/saltpond/camera_paths/1.json --outputs-dir ../fyp-playground/outputs
+
+# Render both dataset + camera-path
+python scripts/render_experiments.py a_exploration --render-type all --outputs-dir ../fyp-playground/outputs
+
+# Skip runs that already have render videos
+python scripts/render_experiments.py a_exploration --skip-existing --outputs-dir ../fyp-playground/outputs
+
+# Render with depth output and downscaled resolution
+python scripts/render_experiments.py a_exploration --rendered-output-names rgb depth --downscale-factor 2 \
+  --outputs-dir ../fyp-playground/outputs
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `paths` (positional) | Experiment path specs. If omitted, uses config mode. | none |
+| `--render-type {dataset,camera-path,all}` | Which render type(s) to run | `dataset` |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--config <path>` | Config module for config mode | `experiment_config` |
+| `--filter <substring>` | Filter experiments (config mode only) | none |
+| `--camera-path <file>` | Explicit camera path JSON (used for all runs) | none |
+| `--camera-paths-dir <dir>` | Directory of camera path JSONs (all rendered per run) | none |
+| `--rendered-output-names <names...>` | Output names to render | `rgb` |
+| `--split <splits>` | Dataset splits, `+`-separated | `train+test` |
+| `--fps <n>` | Video frame rate | `30` |
+| `--keep-frames` | Preserve frame images after video creation | off |
+| `--image-format {jpeg,png}` | Frame format | `jpeg` |
+| `--jpeg-quality <n>` | JPEG quality 1-100 | `100` |
+| `--downscale-factor <n>` | Resolution downscale factor | `1` |
+| `--skip-existing` | Skip runs whose render videos already exist | off |
+| `--dry-run` | Preview without executing | off |
+
+### Camera path resolution
+
+When `--render-type` is `camera-path` or `all`, camera paths are resolved in this order:
+1. **`--camera-path`**: explicit single file (used for all runs)
+2. **`--camera-paths-dir`**: all `*.json` in the directory (rendered per run)
+3. **Auto-discovery**: reads the run's `config.yml` to find the dataset path, then looks for `camera_paths/*.json` in the dataset group directory (e.g. `datasets/saltpond/camera_paths/`)
+
+### Integration with sync_results.sh
+
+After syncing results from the cluster, add `--render` to automatically batch-render:
+
+```bash
+./cluster/scripts/sync_results.sh --include-checkpoints --render
+```
+
+Requires `--include-checkpoints` since rendering needs model checkpoints.
+
+### Dependencies
+
+- `render.py` (imported directly — `render_dataset`, `render_camera_path`, `check_prerequisites`)
+- `eval_experiments.py` (`resolve_runs`, `resolve_runs_from_config`, `validate_run`)
+- `read_config.py` (`resolve_outputs_dir`)
+- `experiments/run_experiments.py` (`load_config`, for config mode)
+- `ns-render` must be on `PATH` (nerfstudio installed)
+- `ffmpeg` must be on `PATH` (for dataset mode or `--keep-frames`)
 
 ---
 
