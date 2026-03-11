@@ -4,7 +4,7 @@ channels:
   - defaults
 dependencies:
   - python=3.10
-  - colmap
+  - colmap=3.8
   - pyyaml
   - numpy<2
   - pip
