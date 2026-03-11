@@ -100,6 +100,11 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
   echo "==> Installing CUDA toolkit (${CUDA_LABEL})"
   conda install -c "nvidia/label/${CUDA_LABEL}" cuda-toolkit -y
 
+  # Expose conda-installed CUDA to the linker and build tools — conda's
+  # compiler_compat/ld doesn't search $CONDA_PREFIX/lib by default.
+  export CUDA_HOME="$CONDA_PREFIX"
+  export LIBRARY_PATH="$CONDA_PREFIX/lib:${LIBRARY_PATH:-}"
+
   echo "==> Installing tiny-cuda-nn"
   # If TORCH_CUDA_ARCH_LIST is set but TCNN_CUDA_ARCHITECTURES is not (e.g. container
   # builds without a GPU), derive it so tiny-cuda-nn doesn't try to auto-detect the GPU.
