@@ -130,16 +130,15 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
   pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 fi
 
-# Pin numpy<2 — PyTorch 2.1.2 has ABI incompatibility with numpy 2.x
-pip install "numpy<2"
-
 # Install nerfstudio (editable + compat mode for IDE/Pylance support)
+# Pin numpy<2 inline — PyTorch 2.1.2 has ABI incompatibility with numpy 2.x.
+# Pinning inline ensures pip resolves the constraint in the same invocation.
 echo "==> Installing nerfstudio from $NERFSTUDIO_PATH"
-pip install -e "$NERFSTUDIO_PATH" --config-settings editable_mode=compat
+pip install "numpy<2" -e "$NERFSTUDIO_PATH" --config-settings editable_mode=compat
 
 # Install sea-splatfacto (editable, depends on nerfstudio)
 echo "==> Installing sea-splatfacto from $SEA_SPLATFACTO_PATH"
-pip install -e "$SEA_SPLATFACTO_PATH" --config-settings editable_mode=compat
+pip install "numpy<2" -e "$SEA_SPLATFACTO_PATH" --config-settings editable_mode=compat
 
 # CLI tab completions (non-fatal — some commands may fail completion generation)
 echo "==> Installing CLI completions"
