@@ -53,9 +53,11 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     pip install ninja
     pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 
-    # nerfstudio + sea-splatfacto (non-editable — container is self-contained)
-    pip install /opt/nerfstudio
-    pip install /opt/sea-splatfacto
+    # nerfstudio (non-editable — stable, not actively modified)
+    # "numpy<2" is inline so pip's resolver respects the cap in the same pass
+    pip install "numpy<2" /opt/nerfstudio
+    # sea-splatfacto (editable — bind-mount picks up git pull changes without rebuild)
+    pip install -e /opt/sea-splatfacto
 
     # CLI tab completions (non-fatal if it fails)
     ns-install-cli || true
