@@ -128,7 +128,7 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
     export TCNN_CUDA_ARCHITECTURES
     TCNN_CUDA_ARCHITECTURES=$(echo "$TORCH_CUDA_ARCH_LIST" | tr -d '.' | tr ' ' ';')
   fi
-  pip install setuptools wheel ninja
+  pip install "setuptools<81" wheel ninja
   pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 fi
 
