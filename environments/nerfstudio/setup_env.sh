@@ -23,6 +23,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 COMPUTE_PLATFORM="cpu"
 NERFSTUDIO_PATH="$HOME/opt/nerfstudio"
+NERFSTUDIO_REPO="https://github.com/ikxm17/nerfstudio.git"
+NERFSTUDIO_BRANCH="fix/lazy-exporter-imports"
 SEA_SPLATFACTO_PATH=""
 
 # Parse arguments
@@ -130,6 +132,24 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
   pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 fi
 
+# Clone or update nerfstudio from fork
+if [ ! -d "$NERFSTUDIO_PATH/.git" ]; then
+  echo "==> Cloning nerfstudio from $NERFSTUDIO_REPO (branch: $NERFSTUDIO_BRANCH)"
+  git clone --branch "$NERFSTUDIO_BRANCH" "$NERFSTUDIO_REPO" "$NERFSTUDIO_PATH"
+else
+  echo "==> Updating nerfstudio checkout"
+  # Ensure fork remote exists and checkout the right branch
+  (cd "$NERFSTUDIO_PATH" && {
+    if ! git remote get-url origin 2>/dev/null | grep -q "ikxm17"; then
+      git remote rename origin upstream 2>/dev/null || true
+      git remote add origin "$NERFSTUDIO_REPO"
+    fi
+    git fetch origin
+    git checkout "$NERFSTUDIO_BRANCH" 2>/dev/null || git checkout -b "$NERFSTUDIO_BRANCH" "origin/$NERFSTUDIO_BRANCH"
+    git pull --ff-only origin "$NERFSTUDIO_BRANCH" || true
+  })
+fi
+
 # Install nerfstudio (editable + compat mode for IDE/Pylance support)
 # Pin numpy<2 inline — PyTorch 2.1.2 has ABI incompatibility with numpy 2.x.
 # Pinning inline ensures pip resolves the constraint in the same invocation.
@@ -142,7 +162,17 @@ pip install "numpy<2" -e "$SEA_SPLATFACTO_PATH" --config-settings editable_mode=
 
 # CLI tab completions (non-fatal — some commands may fail completion generation)
 echo "==> Installing CLI completions"
-ns-install-cli || echo "Warning: ns-install-cli had errors (completions may be incomplete)"
+_cli_log=$(mktemp)
+if ns-install-cli > "$_cli_log" 2>&1; then
+  cat "$_cli_log"
+else
+  # ns-install-cli exits non-zero if any single command's completion fails
+  # (e.g. ns-export needs open3d/pymeshlab which may not be installed).
+  # Important completions (ns-train, ns-eval, ns-render) are still generated.
+  echo "Warning: ns-install-cli had errors (some completions may be incomplete)"
+  echo "  Run 'ns-install-cli' manually to see details"
+fi
+rm -f "$_cli_log"
 
 echo ""
 echo "Done! Activate with: conda activate nerfstudio"
