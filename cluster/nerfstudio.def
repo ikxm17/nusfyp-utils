@@ -12,7 +12,6 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
     mkdir -p ${APPTAINER_ROOTFS}/scratch
 
 %files
-    fyp-utils/environments/nerfstudio /opt/env
     sea-splatfacto                    /opt/sea-splatfacto
     nerfstudio                        /opt/nerfstudio
 
@@ -23,41 +22,51 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
         git \
         build-essential \
         ffmpeg \
-        wget \
+        python3 \
+        python3-pip \
+        python3-venv \
+        python3-dev \
         ca-certificates \
         && rm -rf /var/lib/apt/lists/*
 
-    # Install Miniconda
-    wget -qO /tmp/miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
-    bash /tmp/miniconda.sh -b -p /opt/conda
-    rm /tmp/miniconda.sh
-    export PATH="/opt/conda/bin:$PATH"
-    conda init bash
+    # Create a venv so pip packages are isolated from system Python
+    python3 -m venv /opt/venv
+    export PATH="/opt/venv/bin:$PATH"
+    pip install --upgrade pip
 
-    # Accept Anaconda channel ToS non-interactively (required by conda 26.x)
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
-    conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
-
+    # CUDA env vars — base image provides nvcc at /usr/local/cuda
+    export CUDA_HOME=/usr/local/cuda
     # Compile CUDA kernels optimized for A40 (Ampere, compute capability 8.6)
     export TORCH_CUDA_ARCH_LIST="8.6"
     export TCNN_CUDA_ARCHITECTURES="86"
 
-    # Run the existing setup script — creates the nerfstudio conda env with
-    # PyTorch, CUDA toolkit, tiny-cuda-nn, nerfstudio, and sea-splatfacto
-    cd /opt/env
-    bash setup_env.sh --platform cu118 \
-        --nerfstudio /opt/nerfstudio \
-        --sea-splatfacto /opt/sea-splatfacto
+    # Pin numpy <2 to avoid ABI incompatibility with PyTorch 2.1.2
+    pip install "numpy<2"
+
+    # PyTorch (CUDA 11.8 wheels from pytorch.org)
+    pip install \
+        torch==2.1.2+cu118 \
+        torchvision==0.16.2+cu118 \
+        --extra-index-url https://download.pytorch.org/whl/cu118
+
+    # tiny-cuda-nn — build from source using base image's nvcc
+    pip install ninja
+    pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+
+    # nerfstudio + sea-splatfacto (non-editable — container is self-contained)
+    pip install /opt/nerfstudio
+    pip install /opt/sea-splatfacto
+
+    # CLI tab completions (non-fatal if it fails)
+    ns-install-cli || true
 
     # Cleanup to reduce image size
-    /opt/conda/bin/conda clean --all --yes
-    /opt/conda/envs/nerfstudio/bin/pip cache purge
+    pip cache purge
     rm -rf /opt/sea-splatfacto/.git /opt/nerfstudio/.git
 
 %environment
-    export PATH="/opt/conda/envs/nerfstudio/bin:/opt/conda/bin:$PATH"
-    export CONDA_DEFAULT_ENV=nerfstudio
-    export CONDA_PREFIX=/opt/conda/envs/nerfstudio
+    export PATH="/opt/venv/bin:$PATH"
+    export CUDA_HOME=/usr/local/cuda
 
 %runscript
     exec "$@"
