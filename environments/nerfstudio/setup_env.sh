@@ -162,17 +162,7 @@ pip install "numpy<2" -e "$SEA_SPLATFACTO_PATH" --config-settings editable_mode=
 
 # CLI tab completions (non-fatal — some commands may fail completion generation)
 echo "==> Installing CLI completions"
-_cli_log=$(mktemp)
-if ns-install-cli > "$_cli_log" 2>&1; then
-  cat "$_cli_log"
-else
-  # ns-install-cli exits non-zero if any single command's completion fails
-  # (e.g. ns-export needs open3d/pymeshlab which may not be installed).
-  # Important completions (ns-train, ns-eval, ns-render) are still generated.
-  echo "Warning: ns-install-cli had errors (some completions may be incomplete)"
-  echo "  Run 'ns-install-cli' manually to see details"
-fi
-rm -f "$_cli_log"
+ns-install-cli || echo "Warning: ns-install-cli had errors (completions may be incomplete)"
 
 echo ""
 echo "Done! Activate with: conda activate nerfstudio"
