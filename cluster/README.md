@@ -53,6 +53,7 @@ Build from the parent workspace directory so relative `%files` paths resolve:
 
 ```bash
 cd ~/workspace/fyp
+mkdir -p containers
 apptainer build containers/nerfstudio.sif fyp-utils/cluster/nerfstudio.def
 ```
 
