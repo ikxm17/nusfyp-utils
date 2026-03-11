@@ -40,6 +40,7 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
 
     # Compile CUDA kernels optimized for A40 (Ampere, compute capability 8.6)
     export TORCH_CUDA_ARCH_LIST="8.6"
+    export TCNN_CUDA_ARCHITECTURES="86"
 
     # Run the existing setup script — creates the nerfstudio conda env with
     # PyTorch, CUDA toolkit, tiny-cuda-nn, nerfstudio, and sea-splatfacto
