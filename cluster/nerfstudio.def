@@ -51,7 +51,7 @@ From: nvidia/cuda:11.8.0-devel-ubuntu22.04
 
     # tiny-cuda-nn — build from source using base image's nvcc
     pip install setuptools ninja
-    pip install git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
+    pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 
     # nerfstudio (non-editable — stable, not actively modified)
     # "numpy<2" is inline so pip's resolver respects the cap in the same pass
