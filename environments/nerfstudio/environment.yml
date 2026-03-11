@@ -3,8 +3,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.8
+  - python=3.10
   - colmap
   - pyyaml
-  - typeguard
+  - numpy<2
   - pip

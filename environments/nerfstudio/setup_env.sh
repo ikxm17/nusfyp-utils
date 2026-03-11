@@ -130,6 +130,9 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
   pip install --no-build-isolation git+https://github.com/NVlabs/tiny-cuda-nn/#subdirectory=bindings/torch
 fi
 
+# Pin numpy<2 — PyTorch 2.1.2 has ABI incompatibility with numpy 2.x
+pip install "numpy<2"
+
 # Install nerfstudio (editable + compat mode for IDE/Pylance support)
 echo "==> Installing nerfstudio from $NERFSTUDIO_PATH"
 pip install -e "$NERFSTUDIO_PATH" --config-settings editable_mode=compat
