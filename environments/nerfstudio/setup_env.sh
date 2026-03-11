@@ -103,7 +103,20 @@ if [ "$COMPUTE_PLATFORM" != "cpu" ]; then
   # Expose conda-installed CUDA to the linker and build tools — conda's
   # compiler_compat/ld doesn't search $CONDA_PREFIX/lib by default.
   export CUDA_HOME="$CONDA_PREFIX"
-  export LIBRARY_PATH="$CONDA_PREFIX/lib:${LIBRARY_PATH:-}"
+
+  # Build LIBRARY_PATH from known conda CUDA lib locations + system fallback.
+  # Conda packages may place libraries in different subdirectories depending
+  # on the package version and channel.
+  _cuda_lib_path="$CONDA_PREFIX/lib"
+  [ -d "$CONDA_PREFIX/lib/stubs" ] && _cuda_lib_path="$_cuda_lib_path:$CONDA_PREFIX/lib/stubs"
+  [ -d "$CONDA_PREFIX/targets/x86_64-linux/lib" ] && _cuda_lib_path="$_cuda_lib_path:$CONDA_PREFIX/targets/x86_64-linux/lib"
+  # System CUDA fallback — if the machine has /usr/local/cuda, include its
+  # lib64 so the linker can find runtime libs even if conda's copies are
+  # missing or lack development symlinks.
+  [ -d "/usr/local/cuda/lib64" ] && _cuda_lib_path="$_cuda_lib_path:/usr/local/cuda/lib64"
+  export LIBRARY_PATH="$_cuda_lib_path:${LIBRARY_PATH:-}"
+  echo "==> CUDA_HOME=$CUDA_HOME"
+  echo "==> LIBRARY_PATH=$LIBRARY_PATH"
 
   echo "==> Installing tiny-cuda-nn"
   # If TORCH_CUDA_ARCH_LIST is set but TCNN_CUDA_ARCHITECTURES is not (e.g. container
