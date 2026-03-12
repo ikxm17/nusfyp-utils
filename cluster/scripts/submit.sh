@@ -7,8 +7,8 @@
 #   ./cluster/scripts/submit.sh --train-only           # Submit training only
 #   ./cluster/scripts/submit.sh --parallel             # Submit as PBS array job (1 experiment per sub-job)
 #   ./cluster/scripts/submit.sh --filter torpedo       # Pass extra args to all jobs
-#   ./cluster/scripts/submit.sh --free                 # Use free tier queue (auto_free) for training
-#   ./cluster/scripts/submit.sh --free --walltime 2:00:00  # Free tier + custom walltime
+#   ./cluster/scripts/submit.sh --paid                 # Use paid queue (consumes GPU-hour allocation)
+#   ./cluster/scripts/submit.sh --paid --walltime 2:00:00  # Paid queue + custom walltime
 #
 # Run from the fyp-utils/ directory.
 set -euo pipefail
@@ -19,6 +19,7 @@ JOBS_DIR="$SCRIPT_DIR/../jobs"
 TRAIN_ONLY=false
 PARALLEL=false
 RENDER=false
+PAID=false
 EXTRA_ARGS=""
 QSUB_OPTS=""
 
@@ -36,8 +37,8 @@ while [[ $# -gt 0 ]]; do
             PARALLEL=true
             shift
             ;;
-        --free)
-            QSUB_OPTS="$QSUB_OPTS -q auto_free"
+        --paid)
+            PAID=true
             shift
             ;;
         --walltime)
@@ -51,8 +52,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ "$QSUB_OPTS" == *"auto_free"* ]]; then
-    echo "==> Using free tier queue (auto_free) for training. Jobs won't consume GPU-hour allocation."
+# Default to free tier queue unless --paid is specified
+if [ "$PAID" = true ]; then
+    echo "==> Using PAID queue. Jobs will consume GPU-hour allocation."
+else
+    QSUB_OPTS="$QSUB_OPTS -q auto_free"
+    echo "==> Using free tier queue (auto_free). Use --paid to consume GPU-hour allocation."
 fi
 
 submit_sequential() {
