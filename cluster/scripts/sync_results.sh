@@ -76,7 +76,7 @@ echo ""
 echo "==> Rewriting paths in config.yml files..."
 
 find "$LOCAL_OUTPUTS" -name "config.yml" | while read config; do
-    python "$PROJECT_ROOT/scripts/change_config_path.py" "$config" \
+    python3 "$PROJECT_ROOT/scripts/change_config_path.py" "$config" \
         --old-base "$OLD_BASE" \
         --new-base "$NEW_BASE" \
         --old-data "$OLD_DATA" \
