@@ -7,6 +7,7 @@
 # Usage:
 #   ./cluster/scripts/sync_results.sh                        # Sync metrics + configs only
 #   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
+#   ./cluster/scripts/sync_results.sh --cleanup              # Sync, then delete outputs/logs from scratch
 #
 # Prerequisites:
 #   - SSH key or password access to vanda.nus.edu.sg as e0908336
@@ -33,10 +34,12 @@ OLD_DATA="/scratch/${CLUSTER_USER}/fyp-playground/datasets"
 NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
+CLEANUP=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --include-checkpoints) INCLUDE_CHECKPOINTS=true; shift ;;
+        --cleanup) CLEANUP=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -82,6 +85,14 @@ find "$LOCAL_OUTPUTS" -name "config.yml" | while read config; do
         --old-data "$OLD_DATA" \
         --new-data "$NEW_DATA"
 done
+
+# Post-sync cleanup: remove synced outputs and logs from scratch
+if [ "$CLEANUP" = true ]; then
+    echo ""
+    echo "==> Cleaning up remote scratch..."
+    ssh "${CLUSTER_REMOTE}" "rm -rf ${REMOTE_OUTPUTS}* ${REMOTE_LOGS}*"
+    echo "    Removed contents of ${REMOTE_OUTPUTS} and ${REMOTE_LOGS}"
+fi
 
 echo ""
 echo "==> Sync complete."
