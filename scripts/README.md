@@ -444,15 +444,19 @@ When `--render-type` is `camera-path` or `all`, camera paths are resolved in thi
 2. **`--camera-paths-dir`**: all `*.json` in the directory (rendered per run)
 3. **Auto-discovery**: reads the run's `config.yml` to find the dataset path, then looks for `camera_paths/*.json` in the dataset group directory (e.g. `datasets/saltpond/camera_paths/`)
 
-### Integration with sync_results.sh
+### Integration with cluster pipeline
 
-After syncing results from the cluster, add `--render` to automatically batch-render:
+Rendering runs on the cluster via `cluster/jobs/render.pbs`, either as part of the full pipeline or standalone:
 
 ```bash
-./cluster/scripts/sync_results.sh --include-checkpoints --render
+# Full pipeline: train → eval → render
+./cluster/scripts/submit.sh --render
+
+# Standalone render job (e.g. with render-specific args)
+qsub -v EXTRA_ARGS="--render-type all --filter torpedo" cluster/jobs/render.pbs
 ```
 
-Requires `--include-checkpoints` since rendering needs model checkpoints.
+Rendered videos sync automatically with `./cluster/scripts/sync_results.sh` (no extra flags needed).
 
 ### Dependencies
 

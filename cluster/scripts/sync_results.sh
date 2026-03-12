@@ -7,7 +7,6 @@
 # Usage:
 #   ./cluster/scripts/sync_results.sh                        # Sync metrics + configs only
 #   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
-#   ./cluster/scripts/sync_results.sh --include-checkpoints --render  # Sync + batch render
 #
 # Prerequisites:
 #   - SSH key or password access to vanda.nus.edu.sg as e0908336
@@ -34,12 +33,10 @@ OLD_DATA="/scratch/${CLUSTER_USER}/fyp-playground/datasets"
 NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
-POST_RENDER=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --include-checkpoints) INCLUDE_CHECKPOINTS=true; shift ;;
-        --render) POST_RENDER=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
@@ -88,17 +85,3 @@ done
 
 echo ""
 echo "==> Sync complete."
-
-# Optional: batch render after sync
-if [ "$POST_RENDER" = true ]; then
-    if [ "$INCLUDE_CHECKPOINTS" = false ]; then
-        echo ""
-        echo "Warning: --render requires checkpoints. Re-run with --include-checkpoints --render"
-        exit 1
-    fi
-    echo ""
-    echo "==> Running batch renders..."
-    conda run -n nerfstudio python "$PROJECT_ROOT/scripts/render_experiments.py" \
-        --outputs-dir "$LOCAL_OUTPUTS" \
-        --skip-existing
-fi

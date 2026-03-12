@@ -1,0 +1,30 @@
+#!/bin/bash
+#PBS -N ns-render
+#PBS -l select=1:ngpus=1:ncpus=2:mem=16gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#PBS -o /scratch/e0908336/fyp-playground/logs/render.log
+
+# Move to submission directory
+cd "$PBS_O_WORKDIR" || exit 1
+
+CONTAINER=$HOME/workspace/fyp/containers/nerfstudio.sif
+FYP_UTILS=$HOME/workspace/fyp/fyp-utils
+
+echo "==> Job $PBS_JOBID started at $(date)"
+echo "==> Node: $(hostname)"
+
+# Copy cluster local_config into experiments directory
+cp "$FYP_UTILS/cluster/local_config.py" "$FYP_UTILS/scripts/experiments/local_config.py"
+
+apptainer exec --nv \
+    --bind $HOME/workspace/fyp/sea-splatfacto:/opt/sea-splatfacto \
+    --bind $HOME/workspace/fyp/nerfstudio:/opt/nerfstudio \
+    --bind /scratch/$USER:/scratch/$USER \
+    "$CONTAINER" \
+    python "$FYP_UTILS/scripts/render_experiments.py" \
+        --config "$FYP_UTILS/scripts/experiments/experiment_config.py" \
+        --skip-existing \
+        ${EXTRA_ARGS:-}
+
+echo "==> Job finished at $(date)"

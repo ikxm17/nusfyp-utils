@@ -11,7 +11,8 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | `jobs/train.pbs` | PBS job script for training (`run_experiments.py`) |
 | `jobs/train_array.pbs` | PBS array job script — one experiment per sub-job |
 | `jobs/eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
-| `scripts/submit.sh` | Convenience wrapper to submit train→eval dependency chain |
+| `jobs/render.pbs` | PBS job script for rendering experiments to video |
+| `scripts/submit.sh` | Convenience wrapper to submit train→eval→render dependency chain |
 | `scripts/sync_results.sh` | **Runs locally** — rsync results + logs from cluster, rewrite config paths |
 
 ## Workspace Layout
@@ -82,14 +83,20 @@ PBS scripts automatically copy `cluster/local_config.py` into `scripts/experimen
 ```bash
 cd ~/workspace/fyp/fyp-utils
 
-# Submit both jobs (eval depends on training success)
+# Submit train + eval (eval depends on training success)
 ./cluster/scripts/submit.sh
+
+# Submit train + eval + render (render depends on eval success)
+./cluster/scripts/submit.sh --render
 
 # Training only
 ./cluster/scripts/submit.sh --train-only
 
 # Filter specific datasets
 ./cluster/scripts/submit.sh --filter torpedo
+
+# Full pipeline with filter
+./cluster/scripts/submit.sh --render --filter torpedo
 
 # Check job status
 qstat -u $USER
@@ -112,9 +119,18 @@ Each experiment runs as a separate PBS sub-job with its own GPU:
 
 PBS auto-schedules sub-jobs within the cluster's concurrent job limit (max 4 concurrent jobs).
 
+### Submit render job standalone
+
+For render-specific options (e.g. `--render-type all`), submit `render.pbs` directly:
+
+```bash
+# Render all types (dataset + camera-path) for a specific dataset
+qsub -v EXTRA_ARGS="--render-type all --filter torpedo" cluster/jobs/render.pbs
+```
+
 ### Sync results locally
 
-Run on your **local machine**:
+Run on your **local machine**. Rendered videos from the cluster are synced automatically under `outputs/**/renders/`.
 
 ```bash
 cd ~/workspace/fyp/fyp-utils
@@ -122,11 +138,8 @@ cd ~/workspace/fyp/fyp-utils
 # Sync outputs + logs (excludes checkpoints + tensorboard events)
 ./cluster/scripts/sync_results.sh
 
-# Include checkpoints (for runs you want to render)
+# Include checkpoints (for inspecting models or ad-hoc local renders)
 ./cluster/scripts/sync_results.sh --include-checkpoints
-
-# Sync checkpoints + auto-render after sync
-./cluster/scripts/sync_results.sh --include-checkpoints --render
 ```
 
 ## How Editability Works
@@ -148,11 +161,12 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 |-----|------|------|--------|----------|
 | `train.pbs` / `train_array.pbs` | 1x A40 | 36 | 128GB | 12h |
 | `eval.pbs` | 1x A40 | 2 | 16GB | 4h |
+| `render.pbs` | 1x A40 | 2 | 16GB | 4h |
 
 Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per node, max 4 concurrent jobs.
 
 ## Dependencies
 
 - **Builds on**: `environments/nerfstudio/setup_env.sh` (exact same install logic)
-- **Uses**: `scripts/experiments/run_experiments.py`, `scripts/eval_experiments.py`
+- **Uses**: `scripts/experiments/run_experiments.py`, `scripts/eval_experiments.py`, `scripts/render_experiments.py`
 - **Sync uses**: `scripts/change_config_path.py` for path rewriting

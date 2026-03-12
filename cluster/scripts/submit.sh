@@ -1,11 +1,12 @@
 #!/bin/bash
-# Submit train→eval dependency chain to PBS.
+# Submit train→eval→render dependency chain to PBS.
 #
 # Usage:
-#   ./cluster/scripts/submit.sh                        # Submit both train + eval
+#   ./cluster/scripts/submit.sh                        # Submit train + eval
+#   ./cluster/scripts/submit.sh --render               # Submit train + eval + render
 #   ./cluster/scripts/submit.sh --train-only           # Submit training only
 #   ./cluster/scripts/submit.sh --parallel             # Submit as PBS array job (1 experiment per sub-job)
-#   ./cluster/scripts/submit.sh --filter torpedo       # Pass extra args to both jobs
+#   ./cluster/scripts/submit.sh --filter torpedo       # Pass extra args to all jobs
 #
 # Run from the fyp-utils/ directory.
 set -euo pipefail
@@ -15,12 +16,17 @@ JOBS_DIR="$SCRIPT_DIR/../jobs"
 
 TRAIN_ONLY=false
 PARALLEL=false
+RENDER=false
 EXTRA_ARGS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --train-only)
             TRAIN_ONLY=true
+            shift
+            ;;
+        --render)
+            RENDER=true
             shift
             ;;
         --parallel)
@@ -94,3 +100,13 @@ else
     EVAL_JOB=$(qsub -W depend=afterok:"$TRAIN_JOB" "$JOBS_DIR/eval.pbs")
 fi
 echo "Eval job submitted: $EVAL_JOB (depends on $TRAIN_JOB)"
+
+if [ "$RENDER" = true ]; then
+    # Submit render job — runs only after eval succeeds
+    if [ -n "$EXTRA_ARGS" ]; then
+        RENDER_JOB=$(qsub -W depend=afterok:"$EVAL_JOB" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/render.pbs")
+    else
+        RENDER_JOB=$(qsub -W depend=afterok:"$EVAL_JOB" "$JOBS_DIR/render.pbs")
+    fi
+    echo "Render job submitted: $RENDER_JOB (depends on $EVAL_JOB)"
+fi
