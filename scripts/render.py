@@ -135,20 +135,33 @@ def frames_to_video(frame_dir, output_file, fps, glob_pattern=None):
 
 
 def render_dataset(args):
-    """Render dataset splits and convert frames to video."""
+    """Render dataset splits and convert frames to video.
+
+    Supports a "combined" pseudo-split: when the split string includes "combined"
+    (e.g. "train+test+combined"), individual splits are rendered normally, then
+    their frames are concatenated into a single combined video per output.
+    """
     config_path = resolve_config_path(args.experiment, args.outputs_dir)
     timestamp_dir = config_path.parent
 
-    splits = args.split.split("+")
+    all_splits = args.split.split("+")
+    render_splits = [s for s in all_splits if s != "combined"]
+    do_combined = "combined" in all_splits
+
     base_output_dir = args.output_dir or (timestamp_dir / "renders" / "dataset")
 
     print(f"Config:  {config_path}")
     print(f"Output:  {base_output_dir}")
-    print(f"Splits:  {', '.join(splits)}")
+    print(f"Splits:  {', '.join(all_splits)}")
     print(f"Outputs: {', '.join(args.rendered_output_names)}")
     print()
 
-    for split in splits:
+    # When combining, we must keep frames through the per-split loop
+    keep_frames_original = args.keep_frames
+    if do_combined:
+        args.keep_frames = True
+
+    for split in render_splits:
         split_output_dir = base_output_dir / split
         print(f"--- Split: {split} ---")
 
@@ -188,11 +201,82 @@ def render_dataset(args):
             video_file = split_output_dir / f"{output_name}.mp4"
             success = frames_to_video(frame_dir, video_file, args.fps)
 
-            # Only remove frames if video was created successfully
+            # Only remove frames if video was created and we don't need them
             if success and not args.keep_frames:
                 shutil.rmtree(frame_dir)
                 print(f"  Removed frames: {frame_dir.name}/")
 
+        print()
+
+    # Restore original keep_frames setting
+    args.keep_frames = keep_frames_original
+
+    # Combined pseudo-split: concatenate frames from all rendered splits
+    if do_combined and len(render_splits) > 1 and not args.dry_run:
+        combined_output_dir = base_output_dir / "combined"
+        print("--- Combined ---")
+
+        for output_name in args.rendered_output_names:
+            # Gather frames from all splits in order
+            all_frames = []
+            for split in render_splits:
+                frame_dir = base_output_dir / split / output_name
+                if not frame_dir.is_dir():
+                    continue
+                image_exts = {".jpg", ".jpeg", ".png"}
+                frames = sorted(
+                    [f for f in frame_dir.iterdir() if f.suffix.lower() in image_exts],
+                    key=natural_sort_key,
+                )
+                all_frames.extend(frames)
+
+            if not all_frames:
+                print(f"  Warning: No frames found for combined {output_name}")
+                continue
+
+            # Write a concat filelist referencing frames from each split dir
+            combined_output_dir.mkdir(parents=True, exist_ok=True)
+            list_file = combined_output_dir / f"_{output_name}_filelist.txt"
+            with open(list_file, "w") as f:
+                for frame in all_frames:
+                    safe_path = str(frame.resolve()).replace("'", "'\\''")
+                    f.write(f"file '{safe_path}'\n")
+                    f.write(f"duration {1 / args.fps}\n")
+
+            video_file = combined_output_dir / f"{output_name}.mp4"
+            cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat",
+                "-safe", "0",
+                "-i", str(list_file),
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                str(video_file),
+            ]
+
+            print(f"  Creating video: {output_name}.mp4 ({len(all_frames)} frames, {args.fps} fps)")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            list_file.unlink()
+
+            if result.returncode != 0:
+                print(f"  Error: ffmpeg failed:\n{result.stderr}", file=sys.stderr)
+            else:
+                print(f"  Saved: {video_file}")
+
+        # Clean up per-split frames now that combined videos are created
+        if not args.keep_frames:
+            for split in render_splits:
+                for output_name in args.rendered_output_names:
+                    frame_dir = base_output_dir / split / output_name
+                    if frame_dir.is_dir():
+                        shutil.rmtree(frame_dir)
+                        print(f"  Removed frames: {split}/{output_name}/")
+
+        print()
+    elif do_combined and args.dry_run:
+        print("--- Combined ---")
+        print(f"    Will combine frames from {'+'.join(render_splits)} into combined/ videos")
+        print(f"    Outputs: {args.rendered_output_names}")
         print()
 
 
