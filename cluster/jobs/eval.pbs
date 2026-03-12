@@ -4,6 +4,7 @@
 #PBS -l walltime=04:00:00
 #PBS -j oe
 #PBS -o /scratch/e0908336/fyp-playground/logs/eval.log
+#PBS -q auto_free
 
 # Move to submission directory
 cd "$PBS_O_WORKDIR" || exit 1

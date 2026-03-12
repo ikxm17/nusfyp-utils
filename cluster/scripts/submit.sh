@@ -7,6 +7,8 @@
 #   ./cluster/scripts/submit.sh --train-only           # Submit training only
 #   ./cluster/scripts/submit.sh --parallel             # Submit as PBS array job (1 experiment per sub-job)
 #   ./cluster/scripts/submit.sh --filter torpedo       # Pass extra args to all jobs
+#   ./cluster/scripts/submit.sh --free                 # Use free tier queue (auto_free) for training
+#   ./cluster/scripts/submit.sh --free --walltime 2:00:00  # Free tier + custom walltime
 #
 # Run from the fyp-utils/ directory.
 set -euo pipefail
@@ -18,6 +20,7 @@ TRAIN_ONLY=false
 PARALLEL=false
 RENDER=false
 EXTRA_ARGS=""
+QSUB_OPTS=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -33,6 +36,14 @@ while [[ $# -gt 0 ]]; do
             PARALLEL=true
             shift
             ;;
+        --free)
+            QSUB_OPTS="$QSUB_OPTS -q auto_free"
+            shift
+            ;;
+        --walltime)
+            QSUB_OPTS="$QSUB_OPTS -l walltime=$2"
+            shift 2
+            ;;
         *)
             EXTRA_ARGS="$EXTRA_ARGS $1"
             shift
@@ -40,12 +51,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [[ "$QSUB_OPTS" == *"auto_free"* ]]; then
+    echo "==> Using free tier queue (auto_free) for training. Jobs won't consume GPU-hour allocation."
+fi
+
 submit_sequential() {
     # Submit single training job that runs all experiments sequentially
     if [ -n "$EXTRA_ARGS" ]; then
-        TRAIN_JOB=$(qsub -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/train.pbs")
+        TRAIN_JOB=$(qsub $QSUB_OPTS -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/train.pbs")
     else
-        TRAIN_JOB=$(qsub "$JOBS_DIR/train.pbs")
+        TRAIN_JOB=$(qsub $QSUB_OPTS "$JOBS_DIR/train.pbs")
     fi
     echo "Training job submitted: $TRAIN_JOB"
     echo "$TRAIN_JOB"
@@ -74,9 +89,9 @@ submit_parallel() {
     echo "Submitting array job with $COUNT experiments (indices 0-$LAST_INDEX)"
 
     if [ -n "$EXTRA_ARGS" ]; then
-        TRAIN_JOB=$(qsub -J "0-$LAST_INDEX" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/train_array.pbs")
+        TRAIN_JOB=$(qsub $QSUB_OPTS -J "0-$LAST_INDEX" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/train_array.pbs")
     else
-        TRAIN_JOB=$(qsub -J "0-$LAST_INDEX" "$JOBS_DIR/train_array.pbs")
+        TRAIN_JOB=$(qsub $QSUB_OPTS -J "0-$LAST_INDEX" "$JOBS_DIR/train_array.pbs")
     fi
     echo "Array training job submitted: $TRAIN_JOB"
     echo "$TRAIN_JOB"

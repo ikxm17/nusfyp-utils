@@ -102,6 +102,23 @@ cd ~/workspace/fyp/fyp-utils
 qstat -u $USER
 ```
 
+### Free tier / walltime override
+
+Vanda charges GPU-hours based on **requested walltime**, not actual elapsed time. The `auto_free` queue avoids GPU-hour charges entirely but has lower priority (jobs may be pre-empted).
+
+Eval and render jobs always run on `auto_free` (set in their PBS scripts). Training uses the paid queue by default — use `--free` to override.
+
+```bash
+# Training on free tier (no GPU-hour charge, lower priority)
+./cluster/scripts/submit.sh --free --train-only
+
+# Override walltime (e.g. after profiling actual runtime)
+./cluster/scripts/submit.sh --walltime 2:00:00
+
+# Combine: free tier + short walltime for smoke tests
+./cluster/scripts/submit.sh --free --walltime 1:00:00 --render --filter torpedo
+```
+
 ### Submit training in parallel (array jobs)
 
 Each experiment runs as a separate PBS sub-job with its own GPU:
@@ -164,6 +181,8 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 | `render.pbs` | 1x A40 | 2 | 16GB | 4h |
 
 Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per node, max 4 concurrent jobs.
+
+> **Tip:** Use `--free` for development/smoke tests. Use `--walltime` to right-size requests after profiling actual runtime.
 
 ## Dependencies
 
