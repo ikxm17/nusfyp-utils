@@ -38,6 +38,9 @@ MODELS = getattr(local_config, "MODELS", ["sea-splatfacto"])
 NUMBER_OF_REPEATS = getattr(local_config, "NUMBER_OF_REPEATS", 1)
 VIS = getattr(local_config, "VIS", "viewer+tensorboard")
 VIEWER = getattr(local_config, "VIEWER", False)
+RENDER_OUTPUT_NAMES = getattr(local_config, "RENDER_OUTPUT_NAMES", ["rgb"])
+RENDER_TYPE = getattr(local_config, "RENDER_TYPE", "dataset")
+RENDER_SPLIT = getattr(local_config, "RENDER_SPLIT", "train+test")
 
 # ---------------------------------------------------------------------------
 # Build experiment list (datasets x templates x repeats x models)

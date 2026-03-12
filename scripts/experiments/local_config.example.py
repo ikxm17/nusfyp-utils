@@ -26,3 +26,16 @@ EXPERIMENT_TEMPLATES = [
 # NUMBER_OF_REPEATS = 1
 # VIS = "viewer+tensorboard"   # or "tensorboard" for headless
 # VIEWER = False
+
+# Render settings:
+# RENDER_OUTPUT_NAMES = [
+#     "rgb",
+#     "depth",
+#     "accumulation",
+#     "underwater_rgb",
+#     "direct",
+#     "backscatter",
+#     "attenuation_map",
+# ]
+# RENDER_TYPE = "all"                    # "dataset", "camera-path", or "all"
+# RENDER_SPLIT = "train+test+combined"   # "+"-separated; "combined" merges all splits

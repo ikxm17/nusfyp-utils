@@ -102,7 +102,8 @@ def check_existing_renders(
     missing = []
 
     if render_type in ("dataset", "all"):
-        for split in splits or ["train", "test"]:
+        all_splits = splits or ["train", "test"]
+        for split in all_splits:
             for output_name in rendered_output_names:
                 video = renders_dir / "dataset" / split / f"{output_name}.mp4"
                 rel = str(video.relative_to(run_dir))
@@ -237,7 +238,7 @@ def main():
     parser.add_argument(
         "--render-type",
         choices=["dataset", "camera-path", "all"],
-        default="dataset",
+        default=None,
         help="Render type(s) to run (default: dataset)",
     )
     parser.add_argument(
@@ -276,12 +277,12 @@ def main():
     render_group.add_argument(
         "--rendered-output-names",
         nargs="+",
-        default=["rgb"],
+        default=None,
         help="Output names to render (default: rgb)",
     )
     render_group.add_argument(
         "--split",
-        default="train+test",
+        default=None,
         help="Dataset split(s) to render, '+'-separated (default: train+test)",
     )
     render_group.add_argument(
@@ -331,13 +332,21 @@ def main():
     if args.paths and args.filter:
         parser.error("--filter cannot be used with positional paths")
 
-    # Resolve runs
+    # Resolve runs and apply config/default values for render settings
     if args.paths:
         outputs_dir = resolve_outputs_dir(args.outputs_dir)
         all_runs = []
         for spec in args.paths:
             runs = resolve_runs(spec, outputs_dir)
             all_runs.extend(runs)
+
+        # Path mode — use hardcoded defaults for unset args
+        if args.render_type is None:
+            args.render_type = "dataset"
+        if args.rendered_output_names is None:
+            args.rendered_output_names = ["rgb"]
+        if args.split is None:
+            args.split = "train+test"
     else:
         config = load_config(args.config)
         experiments = config.EXPERIMENTS
@@ -347,6 +356,14 @@ def main():
             print("No experiments match the filter.", file=sys.stderr)
             sys.exit(1)
         all_runs = resolve_runs_from_config(experiments)
+
+        # Config mode — use config values for unset args, fall back to defaults
+        if args.render_type is None:
+            args.render_type = getattr(config, "RENDER_TYPE", "dataset")
+        if args.rendered_output_names is None:
+            args.rendered_output_names = getattr(config, "RENDER_OUTPUT_NAMES", ["rgb"])
+        if args.split is None:
+            args.split = getattr(config, "RENDER_SPLIT", "train+test")
 
     # Deduplicate while preserving order
     seen = set()

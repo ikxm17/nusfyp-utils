@@ -21,3 +21,16 @@ EXPERIMENT_TEMPLATES = [
 # Headless cluster — tensorboard logging only, no viewer
 VIS = "tensorboard"
 VIEWER = False
+
+# Render settings — all sea-splatfacto outputs
+RENDER_OUTPUT_NAMES = [
+    "rgb",
+    "depth",
+    "accumulation",
+    "underwater_rgb",
+    "direct",
+    "backscatter",
+    "attenuation_map",
+]
+RENDER_TYPE = "all"
+RENDER_SPLIT = "train+test+combined"
