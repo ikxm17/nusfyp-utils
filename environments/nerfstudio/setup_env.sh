@@ -24,7 +24,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPUTE_PLATFORM="cpu"
 NERFSTUDIO_PATH="$HOME/opt/nerfstudio"
 NERFSTUDIO_REPO="https://github.com/ikxm17/nerfstudio.git"
-NERFSTUDIO_BRANCH="fix/lazy-exporter-imports"
+NERFSTUDIO_BRANCH="fix/fork-patches"
 SEA_SPLATFACTO_PATH=""
 
 # Parse arguments
