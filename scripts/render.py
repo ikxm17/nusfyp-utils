@@ -153,10 +153,12 @@ def render_dataset(args):
         print(f"--- Split: {split} ---")
 
         # ns-render dataset always outputs frames; we convert to video afterwards
+        # Note: ns-render creates {output_path}/{split}/ internally,
+        # so we pass base_output_dir (not split_output_dir) to avoid double nesting.
         cmd = [
             "ns-render", "dataset",
             "--load-config", str(config_path),
-            "--output-path", str(split_output_dir),
+            "--output-path", str(base_output_dir),
             "--rendered-output-names",
         ] + args.rendered_output_names + [
             "--split", split,
