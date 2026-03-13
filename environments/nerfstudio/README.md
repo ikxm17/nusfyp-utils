@@ -24,8 +24,8 @@ Creates a `nerfstudio` conda environment with PyTorch, COLMAP, and installs nerf
 # CUDA 11.8
 ./setup_env.sh --platform cu118
 
-# CUDA 12.1 with custom nerfstudio path
-./setup_env.sh --platform cu121 --nerfstudio /opt/nerfstudio
+# CUDA 12.1 with explicit nerfstudio path override
+./setup_env.sh --platform cu121 --nerfstudio ~/opt/nerfstudio
 ```
 
 ### Arguments
@@ -33,7 +33,7 @@ Creates a `nerfstudio` conda environment with PyTorch, COLMAP, and installs nerf
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--platform {cpu,cu118,cu121}` | Compute platform | `cu118` |
-| `--nerfstudio <path>` | Path to nerfstudio source | `~/opt/nerfstudio` |
+| `--nerfstudio <path>` | Path to nerfstudio source | auto-detected from project root |
 | `--sea-splatfacto <path>` | Path to sea-splatfacto source | auto-detected from project root |
 
 ### What it installs

@@ -154,6 +154,9 @@ cd ~/workspace/fyp/fyp-utils
 
 # Include checkpoints (for inspecting models or ad-hoc local renders)
 ./cluster/scripts/sync_results.sh --include-checkpoints
+
+# Delete synced files from remote after successful sync
+./cluster/scripts/sync_results.sh --cleanup
 ```
 
 ## How Editability Works
