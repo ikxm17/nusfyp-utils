@@ -15,9 +15,6 @@ FYP_UTILS=$HOME/workspace/fyp/fyp-utils
 echo "==> Job $PBS_JOBID started at $(date)"
 echo "==> Node: $(hostname)"
 
-# Copy cluster local_config into experiments directory
-cp "$FYP_UTILS/cluster/local_config.py" "$FYP_UTILS/scripts/experiments/local_config.py"
-
 # Disable torch.compile — inductor backend can't find libcuda.so in the container
 export TORCHDYNAMO_DISABLE=1
 
@@ -27,7 +24,7 @@ apptainer exec --nv \
     --bind /scratch/$USER:/scratch/$USER \
     "$CONTAINER" \
     python "$FYP_UTILS/scripts/render_experiments.py" \
-        --config "$FYP_UTILS/scripts/experiments/experiment_config.py" \
+        --config "$FYP_UTILS/config/experiment_config.py" \
         --skip-existing \
         ${EXTRA_ARGS:-}
 

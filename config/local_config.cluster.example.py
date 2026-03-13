@@ -2,7 +2,7 @@
 Machine-specific settings for Vanda HPC cluster.
 
 Copy to local_config.py and edit:
-    cp cluster/local_config.example.py cluster/local_config.py
+    cp config/local_config.cluster.example.py config/local_config.py
 """
 import os
 

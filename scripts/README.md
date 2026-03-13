@@ -7,8 +7,6 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | Script | Purpose |
 |--------|---------|
 | `experiments/run_experiments.py` | Batch-run nerfstudio training experiments |
-| `experiments/experiment_config.py` | Define experiment matrices (datasets x templates x models x repeats) |
-| `experiments/local_config.example.py` | Template for machine-specific settings (copy to `local_config.py`) |
 | `read_config.py` | Read and diff nerfstudio experiment configs |
 | `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
 | `eval_experiments.py` | Batch-run `ns-eval` and save metrics to experiment directories |
@@ -19,17 +17,17 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 ### Script relationships
 
 ```
-local_config.py ──> experiment_config.py ──> run_experiments.py
-                    (local settings)         (config defines experiments, runner executes them)
+config/local_config.py ──> config/experiment_config.py ──> run_experiments.py
+                           (local settings)                (config defines experiments, runner executes them)
 
 read_config.py ──> log_experiments.py       (log generator uses reader to load/compare configs)
 read_config.py ──> eval_experiments.py      (evaluator uses reader + log_experiments for path resolution)
 log_experiments.py ──> eval_experiments.py
-experiment_config.py ──> eval_experiments.py  (config mode uses experiment config for run discovery)
+config/experiment_config.py ──> eval_experiments.py  (config mode uses experiment config for run discovery)
 read_config.py ──> render.py               (renderer uses reader for path resolution)
 render.py ──> render_experiments.py         (batch renderer imports render.py functions)
 eval_experiments.py ──> render_experiments.py  (batch renderer reuses run resolution logic)
-experiment_config.py ──> render_experiments.py  (config mode uses experiment config for run discovery)
+config/experiment_config.py ──> render_experiments.py  (config mode uses experiment config for run discovery)
 change_config_path.py                       (standalone — used manually when moving between machines)
 ```
 
@@ -63,14 +61,14 @@ python scripts/experiments/run_experiments.py --log-index
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--dry-run` | Preview commands without executing | off |
-| `--config <path>` | Path to config `.py` file or module name | `experiment_config` |
+| `--config <path>` | Path to config `.py` file or module name | `config/experiment_config.py` |
 | `--filter <substring>` | Only run experiments whose name contains this substring | none |
 | `--log-index` | Prefix `expt_{index}_` to log filenames | off |
 
 ### Config module requirements
 
 The config module must export:
-- `EXPERIMENTS` — list of experiment dicts (see `experiment_config.py` for the schema)
+- `EXPERIMENTS` — list of experiment dicts (see `config/experiment_config.py` for the schema)
 - `LOG_DIR` — path to directory for log files
 
 ### Dependencies
@@ -80,56 +78,7 @@ The config module must export:
 
 ---
 
-## experiments/experiment_config.py
-
-Defines the experiment matrix for `run_experiments.py`. Configures datasets, experiment templates (hyperparameter variations), models, and repeat counts, then generates the full `EXPERIMENTS` list as a cartesian product. Machine-specific settings are imported from `local_config.py`.
-
-### Structure
-
-```python
-# Required from local_config.py:
-WORKSPACE_DIR          # Base path to fyp-playground
-DATASETS               # Dict mapping dataset names to paths
-EXPERIMENT_TEMPLATES   # List of {suffix, extra_args} dicts
-
-# Optional (overridable in local_config.py):
-OUTPUT_DIR             # Where nerfstudio writes outputs (default: WORKSPACE_DIR/outputs)
-LOG_DIR                # Where runner writes logs (default: WORKSPACE_DIR/logs)
-MODELS                 # List of model names (default: ["sea-splatfacto"])
-NUMBER_OF_REPEATS      # How many times to repeat each combination (default: 1)
-
-# Auto-generated:
-EXPERIMENTS            # datasets x templates x repeats x models
-```
-
-### Customization
-
-- Add datasets to `DATASETS` in `local_config.py`
-- Add experiment variants to `EXPERIMENT_TEMPLATES` with custom `extra_args` (these become `ns-train` CLI flags)
-- Override `OUTPUT_DIR`, `LOG_DIR`, `MODELS`, or `NUMBER_OF_REPEATS` in `local_config.py`
-- Use `--filter` on the runner to select subsets at runtime
-
----
-
-## experiments/local_config.example.py
-
-Template for machine-specific settings. Copy to `local_config.py` and edit:
-
-```bash
-cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py
-```
-
-### Settings
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `WORKSPACE_DIR` | yes | Base path to `fyp-playground` |
-| `DATASETS` | yes | Dict mapping dataset names to paths |
-| `EXPERIMENT_TEMPLATES` | yes | List of `{suffix, extra_args}` dicts |
-| `OUTPUT_DIR` | no | Override default output directory (`WORKSPACE_DIR/outputs`) |
-| `LOG_DIR` | no | Override default log directory (`WORKSPACE_DIR/logs`) |
-| `MODELS` | no | Override default model list (`["sea-splatfacto"]`) |
-| `NUMBER_OF_REPEATS` | no | Override default repeat count (`1`) |
+> **Note:** Experiment configuration files (`experiment_config.py`, `local_config.py`, `local_config.example.py`) now live in the top-level `config/` directory. See those files directly for schema and customization details.
 
 ---
 
@@ -262,7 +211,7 @@ python scripts/eval_experiments.py <path> --render-images
 | Flag | Description | Default |
 |------|-------------|---------|
 | `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring). If omitted, uses config mode. | none |
-| `--config <path>` | Path to config `.py` file or module name (config mode) | `experiment_config` |
+| `--config <path>` | Path to config `.py` file or module name (config mode) | `config/experiment_config.py` |
 | `--filter <substring>` | Only evaluate experiments whose name contains this substring (config mode only) | none |
 | `--outputs-dir <path>` | Base outputs directory for resolution (path mode) | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
 | `--output-name <name>` | Metrics JSON filename | `metrics.json` |
@@ -287,7 +236,7 @@ python scripts/eval_experiments.py <path> --render-images
 - `read_config.py` (path resolution utilities)
 - `log_experiments.py` (`find_runs`, `resolve_experiment_dir`)
 - `experiments/run_experiments.py` (`load_config`, for config mode)
-- `experiments/experiment_config.py` + `experiments/local_config.py` (config mode)
+- `config/experiment_config.py` + `config/local_config.py` (config mode)
 
 ---
 
@@ -423,7 +372,7 @@ python scripts/render_experiments.py a_exploration --rendered-output-names rgb d
 | `paths` (positional) | Experiment path specs. If omitted, uses config mode. | none |
 | `--render-type {dataset,camera-path,all}` | Which render type(s) to run | `dataset` |
 | `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
-| `--config <path>` | Config module for config mode | `experiment_config` |
+| `--config <path>` | Config module for config mode | `config/experiment_config.py` |
 | `--filter <substring>` | Filter experiments (config mode only) | none |
 | `--camera-path <file>` | Explicit camera path JSON (used for all runs) | none |
 | `--camera-paths-dir <dir>` | Directory of camera path JSONs (all rendered per run) | none |

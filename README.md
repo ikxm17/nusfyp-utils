@@ -6,6 +6,7 @@ Utility scripts and environment configs for nerfstudio-based experiments. Handle
 
 ```
 fyp-utils/
+├── config/           # Experiment configuration (machine-specific settings)
 ├── scripts/          # CLI tools for running and analyzing experiments
 ├── environments/     # Environment setup (conda, Docker)
 │   └── nerfstudio/
@@ -28,8 +29,8 @@ See each directory's README for detailed usage:
 conda activate nerfstudio
 
 # 3. Configure experiments
-cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py
-#    Edit scripts/experiments/local_config.py with your WORKSPACE_DIR
+cp config/local_config.example.py config/local_config.py
+#    Edit config/local_config.py with your WORKSPACE_DIR
 
 # 4. Preview experiment commands
 python scripts/experiments/run_experiments.py --dry-run

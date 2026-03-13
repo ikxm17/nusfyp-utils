@@ -81,7 +81,7 @@ submit_parallel() {
         --bind $HOME/workspace/fyp/nerfstudio:/opt/nerfstudio \
         "$CONTAINER" \
         python "$FYP_UTILS/scripts/experiments/run_experiments.py" \
-            --config "$FYP_UTILS/scripts/experiments/experiment_config.py" \
+            --config "$FYP_UTILS/config/experiment_config.py" \
             --count \
             ${EXTRA_ARGS:-})
 

@@ -7,7 +7,6 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | File | Purpose |
 |------|---------|
 | `nerfstudio.def` | Apptainer container definition (CUDA 11.8 + nerfstudio + sea-splatfacto) |
-| `local_config.example.py` | Template for cluster's `local_config.py` (gitignored) |
 | `jobs/train.pbs` | PBS job script for training (`run_experiments.py`) |
 | `jobs/train_array.pbs` | PBS array job script — one experiment per sub-job |
 | `jobs/eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
@@ -70,11 +69,11 @@ rsync -avz local_machine:~/workspace/fyp/fyp-playground/datasets/ /scratch/$USER
 ### 3. Configure local_config
 
 ```bash
-cp cluster/local_config.example.py cluster/local_config.py
+cp config/local_config.cluster.example.py config/local_config.py
 # Edit if needed (datasets, templates, etc.)
 ```
 
-PBS scripts automatically copy `cluster/local_config.py` into `scripts/experiments/` at job start.
+Each machine maintains its own `config/local_config.py` in its git checkout.
 
 ## Usage
 
@@ -168,7 +167,7 @@ The container bakes compiled dependencies (PyTorch, CUDA, tiny-cuda-nn) and edit
 
 Python resolves source through the editable install pointers to `/opt/sea-splatfacto` and `/opt/nerfstudio`, which now point to the host's live code. Code changes take effect immediately — only structural changes (new entry points, packages, or dependencies) require a container rebuild.
 
-`local_config.py` is in `$HOME`, which Apptainer auto-binds.
+`config/local_config.py` is in `$HOME`, which Apptainer auto-binds.
 
 ## Resource Requests
 
@@ -185,5 +184,5 @@ Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per node, m
 ## Dependencies
 
 - **Builds on**: `environments/nerfstudio/setup_env.sh` (exact same install logic)
-- **Uses**: `scripts/experiments/run_experiments.py`, `scripts/eval_experiments.py`, `scripts/render_experiments.py`
+- **Uses**: `scripts/experiments/run_experiments.py`, `scripts/eval_experiments.py`, `scripts/render_experiments.py`, `config/experiment_config.py`
 - **Sync uses**: `scripts/change_config_path.py` for path rewriting

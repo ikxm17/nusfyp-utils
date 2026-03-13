@@ -236,8 +236,8 @@ def main():
     )
     parser.add_argument(
         "--config",
-        default="experiment_config",
-        help="Path to config .py file or module name (default: experiment_config)",
+        default=str(Path(__file__).resolve().parent.parent / "config" / "experiment_config.py"),
+        help="Path to config .py file or module name (default: config/experiment_config.py)",
     )
     parser.add_argument(
         "--filter",

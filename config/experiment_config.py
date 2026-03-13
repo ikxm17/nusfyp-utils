@@ -19,7 +19,7 @@ except ImportError:
     sys.exit(
         "ERROR: local_config.py not found.\n"
         "Copy the template and edit it:\n"
-        "    cp scripts/experiments/local_config.example.py scripts/experiments/local_config.py"
+        "    cp config/local_config.example.py config/local_config.py"
     )
 
 # ---------------------------------------------------------------------------
