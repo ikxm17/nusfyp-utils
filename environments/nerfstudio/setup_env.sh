@@ -6,13 +6,13 @@
 #   ./setup_env.sh [OPTIONS]
 #
 # Options:
-#   --platform cpu|cu118|cu121   Compute platform (default: cpu)
+#   --platform cpu|cu118|cu121   Compute platform (default: cu118)
 #   --nerfstudio PATH            Path to nerfstudio source (default: ~/opt/nerfstudio)
 #   --sea-splatfacto PATH        Path to sea-splatfacto source (default: auto-detected from project root)
 #   --help                       Show this help message
 #
 # Examples:
-#   ./setup_env.sh                                    # CPU-only, default paths
+#   ./setup_env.sh                                    # CUDA 11.8, default paths
 #   ./setup_env.sh --platform cu118                   # CUDA 11.8
 #   ./setup_env.sh --platform cu121 --nerfstudio /opt/nerfstudio
 #
@@ -21,7 +21,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-COMPUTE_PLATFORM="cpu"
+COMPUTE_PLATFORM="cu118"
 NERFSTUDIO_PATH="$HOME/opt/nerfstudio"
 NERFSTUDIO_REPO="https://github.com/ikxm17/nerfstudio.git"
 NERFSTUDIO_BRANCH="fix/fork-patches"

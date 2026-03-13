@@ -32,7 +32,7 @@ Creates a `nerfstudio` conda environment with PyTorch, COLMAP, and installs nerf
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--platform {cpu,cu118,cu121}` | Compute platform | `cpu` |
+| `--platform {cpu,cu118,cu121}` | Compute platform | `cu118` |
 | `--nerfstudio <path>` | Path to nerfstudio source | `~/opt/nerfstudio` |
 | `--sea-splatfacto <path>` | Path to sea-splatfacto source | auto-detected from project root |
 
