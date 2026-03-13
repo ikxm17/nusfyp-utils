@@ -94,28 +94,25 @@ For non-cluster experiment runs (local or remote GPU machines), place all repos 
 ## Quick Start
 
 ```bash
-# 1. Clone the nerfstudio fork (if not using setup_env.sh to clone automatically)
-git clone --branch fix/fork-patches https://github.com/ikxm17/nerfstudio.git ../nerfstudio
-
-# 2. Set up the environment
+# 1. Set up the environment (clones nerfstudio fork automatically)
 ./environments/nerfstudio/setup_env.sh --platform cpu|cu118|cu121
 
-# 3. Activate
+# 2. Activate
 conda activate nerfstudio
 
-# 4. Configure experiments
+# 3. Configure experiments
 cp config/local_config.example.py config/local_config.py
 #    Edit config/local_config.py with your WORKSPACE_DIR
 
-# 5. Preview experiment commands
+# 4. Preview experiment commands
 python scripts/experiments/run_experiments.py --dry-run
 
-# 6. Run experiments
+# 5. Run experiments
 python scripts/experiments/run_experiments.py
 
-# 7. Compare configs across runs
+# 6. Compare configs across runs
 python scripts/read_config.py diff <run-a> <run-b>
 
-# 8. Generate experiment log
+# 7. Generate experiment log
 python scripts/log_experiments.py /path/to/method-dir -o log.txt
 ```
