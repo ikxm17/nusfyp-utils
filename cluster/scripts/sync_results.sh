@@ -34,20 +34,23 @@ OLD_DATA="/scratch/${CLUSTER_USER}/fyp-playground/datasets"
 NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
+INCLUDE_TB=false
 CLEANUP=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --include-checkpoints) INCLUDE_CHECKPOINTS=true; shift ;;
+        --include-tb) INCLUDE_TB=true; shift ;;
         --cleanup) CLEANUP=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
 # Build rsync exclude list
-EXCLUDES=(
-    --exclude "events.out.tfevents.*"
-)
+EXCLUDES=()
+if [ "$INCLUDE_TB" = false ]; then
+    EXCLUDES+=(--exclude "events.out.tfevents.*")
+fi
 if [ "$INCLUDE_CHECKPOINTS" = false ]; then
     EXCLUDES+=(--exclude "*.ckpt")
 fi
@@ -55,6 +58,7 @@ fi
 echo "==> Syncing outputs from ${CLUSTER_REMOTE}:${REMOTE_OUTPUTS}"
 echo "    to ${LOCAL_OUTPUTS}"
 echo "    Checkpoints: $([ "$INCLUDE_CHECKPOINTS" = true ] && echo "included" || echo "excluded")"
+echo "    TensorBoard: $([ "$INCLUDE_TB" = true ] && echo "included" || echo "excluded")"
 
 mkdir -p "$LOCAL_OUTPUTS"
 
