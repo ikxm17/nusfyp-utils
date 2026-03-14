@@ -237,7 +237,8 @@ def _compute_transforms_depths(base_dir):
 # Statistics
 # ---------------------------------------------------------------------------
 
-def _compute_stats(results):
+def _compute_stats(results, shallow_pct=5, deep_pct=95,
+                   narrow_factor=0.5, wide_factor=2.0):
     """Compute global and per-camera statistics."""
     all_depths = []
     cam_stats = []
@@ -254,12 +255,14 @@ def _compute_stats(results):
         all_depths.append(dists)
 
     if not all_depths:
-        return None, cam_stats
+        return None, cam_stats, None
 
     all_depths = np.concatenate(all_depths)
 
+    pct_keys = sorted(set([1, 5, 10, 25, 50, 75, 90, 95, 99,
+                           shallow_pct, deep_pct]))
     percentiles = {p: float(np.percentile(all_depths, p))
-                   for p in [1, 5, 10, 25, 50, 75, 90, 95, 99]}
+                   for p in pct_keys}
 
     global_stats = {
         "min": float(all_depths.min()),
@@ -274,27 +277,40 @@ def _compute_stats(results):
     }
 
     # Flag per-camera entries
-    p5 = percentiles[5]
-    p95 = percentiles[95]
+    shallow_thresh = percentiles[shallow_pct]
+    deep_thresh = percentiles[deep_pct]
     ranges = [s[5] for s in cam_stats if not np.isnan(s[1])]
     median_range = float(np.median(ranges)) if ranges else 0.0
+    narrow_thresh = narrow_factor * median_range
+    wide_thresh = wide_factor * median_range
 
     flagged_stats = []
     for name, near, far, med, n_pts, rng, _ in cam_stats:
         flags = []
         if not np.isnan(near):
-            if near < p5:
+            if near < shallow_thresh:
                 flags.append("SHALLOW")
-            if far > p95:
+            if far > deep_thresh:
                 flags.append("DEEP")
             if median_range > 0:
-                if rng < 0.5 * median_range:
+                if rng < narrow_thresh:
                     flags.append("NARROW")
-                if rng > 2.0 * median_range:
+                if rng > wide_thresh:
                     flags.append("WIDE")
         flagged_stats.append((name, near, far, med, n_pts, rng, flags))
 
-    return global_stats, flagged_stats
+    flag_thresholds = {
+        "shallow_pct": shallow_pct,
+        "shallow_thresh": shallow_thresh,
+        "deep_pct": deep_pct,
+        "deep_thresh": deep_thresh,
+        "narrow_factor": narrow_factor,
+        "narrow_thresh": narrow_thresh,
+        "wide_factor": wide_factor,
+        "wide_thresh": wide_thresh,
+    }
+
+    return global_stats, flagged_stats, flag_thresholds
 
 
 # ---------------------------------------------------------------------------
@@ -321,7 +337,7 @@ def _text_histogram(all_depths, n_bins, width=50):
 # ---------------------------------------------------------------------------
 
 def _build_report(mode, n_cameras, n_points, global_stats, cam_stats,
-                  all_depths, args):
+                  all_depths, args, flag_thresholds=None):
     lines = []
     lines.append("Depth Range Report")
     lines.append("==================")
@@ -353,6 +369,17 @@ def _build_report(mode, n_cameras, n_points, global_stats, cam_stats,
     for p in [1, 5, 10, 25, 50, 75, 90, 95, 99]:
         lines.append(f"    p{p:<3d} {gs['percentiles'][p]:.4f}")
     lines.append("")
+
+    # Flag thresholds
+    if flag_thresholds:
+        ft = flag_thresholds
+        lines.append("Flag Thresholds")
+        lines.append("---------------")
+        lines.append(f"  SHALLOW:  near depth < p{ft['shallow_pct']} of global depths ({ft['shallow_thresh']:.4f})")
+        lines.append(f"  DEEP:     far depth > p{ft['deep_pct']} of global depths ({ft['deep_thresh']:.4f})")
+        lines.append(f"  NARROW:   depth range < {ft['narrow_factor']}x median range ({ft['narrow_thresh']:.4f})")
+        lines.append(f"  WIDE:     depth range > {ft['wide_factor']}x median range ({ft['wide_thresh']:.4f})")
+        lines.append("")
 
     # Histogram
     lines.append("Depth Distribution")
@@ -404,6 +431,14 @@ def main():
     parser.add_argument("--no-per-camera", action="store_true",
                         help="Omit per-camera table")
     parser.add_argument("-o", "--output", help="Write report to file")
+    parser.add_argument("--shallow-pct", type=int, default=5,
+                        help="Percentile threshold for SHALLOW flag (default: 5)")
+    parser.add_argument("--deep-pct", type=int, default=95,
+                        help="Percentile threshold for DEEP flag (default: 95)")
+    parser.add_argument("--narrow-factor", type=float, default=0.5,
+                        help="Factor of median range below which = NARROW (default: 0.5)")
+    parser.add_argument("--wide-factor", type=float, default=2.0,
+                        help="Factor of median range above which = WIDE (default: 2.0)")
     args = parser.parse_args()
 
     input_path = os.path.abspath(args.input_path)
@@ -424,13 +459,19 @@ def main():
     else:
         results, n_cameras, n_points, mode_label = _compute_transforms_depths(base_dir)
 
-    global_stats, cam_stats = _compute_stats(results)
+    global_stats, cam_stats, flag_thresholds = _compute_stats(
+        results,
+        shallow_pct=args.shallow_pct,
+        deep_pct=args.deep_pct,
+        narrow_factor=args.narrow_factor,
+        wide_factor=args.wide_factor,
+    )
 
     # Collect all depths for histogram
     all_depths = np.concatenate([d for _, _, d, _ in results if len(d) > 0])
 
     report = _build_report(mode_label, n_cameras, n_points, global_stats,
-                           cam_stats, all_depths, args)
+                           cam_stats, all_depths, args, flag_thresholds)
 
     if args.output:
         with open(args.output, "w") as f:
