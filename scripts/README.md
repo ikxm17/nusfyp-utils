@@ -12,8 +12,12 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `eval_experiments.py` | Batch-run `ns-eval` and save metrics to experiment directories |
 | `render.py` | Render experiments to video (wraps `ns-render` + ffmpeg) |
 | `render_experiments.py` | Batch-render multiple experiments (wraps `render.py` for all runs) |
+| `compare_renders.py` | Extract frames from render videos, compare across experiments visually |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
+| `read_tb.py` | Read and analyze TensorBoard training curves from experiment runs |
+| `dataset_quality.py` | Per-frame image quality assessment (blur, brightness, outlier detection) |
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
+| `dataset_underwater.py` | Underwater dataset characterization |
 
 ### Script relationships
 
@@ -29,6 +33,10 @@ read_config.py ──> render.py               (renderer uses reader for path re
 render.py ──> render_experiments.py         (batch renderer imports render.py functions)
 eval_experiments.py ──> render_experiments.py  (batch renderer reuses run resolution logic)
 config/experiment_config.py ──> render_experiments.py  (config mode uses experiment config for run discovery)
+read_config.py ──> compare_renders.py      (visual comparison uses reader for path resolution)
+read_config.py ──> read_tb.py              (TB reader uses reader for path resolution + config loading)
+log_experiments.py ──> read_tb.py          (uses find_runs for run discovery)
+eval_experiments.py ──> read_tb.py         (uses resolve_runs for flexible path specs)
 change_config_path.py                       (standalone — used manually when moving between machines)
 ```
 
@@ -419,6 +427,70 @@ Rendered videos sync automatically with `./cluster/scripts/sync_results.sh` (no 
 
 ---
 
+## compare_renders.py
+
+Extracts frames from rendered MP4 videos and produces visual comparisons across experiments. Four subcommands support the inspection workflow: check what's available (`info`), pull out frames (`extract`), compare the same frame across experiments (`compare`), and build a full experiment×output matrix (`grid`).
+
+### Usage
+
+```bash
+# Show available renders for an experiment
+python scripts/compare_renders.py info seathru8k --outputs-dir ../fyp-playground/outputs
+
+# Extract specific frames as PNGs
+python scripts/compare_renders.py extract seathru8k --outputs-dir ../fyp-playground/outputs \
+  --frames 0 12 --output-types rgb underwater_rgb
+
+# Cross-experiment comparison strips (vertical stacking)
+python scripts/compare_renders.py compare seathru8k baseline seathru5k \
+  --outputs-dir ../fyp-playground/outputs --frames 0 12 --output-types rgb underwater_rgb
+
+# Full matrix: experiments (rows) x output types (columns)
+python scripts/compare_renders.py grid seathru8k baseline \
+  --outputs-dir ../fyp-playground/outputs --frames 0 --output-types rgb underwater_rgb depth
+
+# Camera-path renders instead of dataset
+python scripts/compare_renders.py info seathru8k --render-type camera-path --camera-path-name 1
+```
+
+### Arguments
+
+**Shared (all subcommands):**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `experiments` (positional) | Experiment specs (substring matching) | required |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--split <split>` | Dataset split | `test` |
+| `--render-type {dataset,camera-path}` | Render type | `dataset` |
+| `--camera-path-name <name>` | Camera path name (camera-path mode) | `1` |
+| `--output-types <types...>` | Output types to process | `rgb underwater_rgb` |
+| `--output-dir <path>` | Where to save results | `./comparisons` |
+| `--max-width <pixels>` | Max image width before downscaling | no limit |
+
+**`extract`, `compare`, `grid`:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--frames <indices...>` | Frame indices to extract | `0` |
+
+### Output structure
+
+```
+comparisons/
+├── extract/{experiment}/{output_type}_frame{NNN}.png
+├── compare/compare_{output_type}_frame{NNN}.png
+└── grid/grid_frame{NNN}.png
+```
+
+### Dependencies
+
+- `cv2` (OpenCV) — frame extraction from MP4
+- `PIL` (Pillow) — image composition and text labels
+- `read_config.py` — path resolution
+
+---
+
 ## change_config_path.py
 
 Rewrites hardcoded absolute paths in nerfstudio `config.yml` files. Nerfstudio serializes `pathlib.PosixPath` objects in its configs, which break when moving outputs between machines. This script replaces path prefixes so configs can be loaded on a different machine.
@@ -471,9 +543,149 @@ The script matches these `- component` line sequences and replaces them with the
 
 ---
 
+## read_tb.py
+
+Reads and analyzes TensorBoard event files from nerfstudio experiment runs. Extracts per-step training data (~3000 scalar data points per tag at 30K steps logged every 10) to diagnose training dynamics: loss component dominance, PSNR trajectory, SeaThru/gray world activation stability, convergence assessment, and medium parameter evolution.
+
+### Usage
+
+```bash
+# Per-experiment training summary
+python scripts/read_tb.py summary tune02_bg003 --outputs-dir ../fyp-playground/outputs
+
+# Summary for multiple experiments
+python scripts/read_tb.py summary tune02_bg003 tune02_gw005 --outputs-dir ../fyp-playground/outputs
+
+# Side-by-side comparison table across wave 2 experiments
+python scripts/read_tb.py compare tune02_bg003 tune02_bg005 tune02_gw005 tune02_gw020 \
+  --outputs-dir ../fyp-playground/outputs
+
+# Use a larger averaging window (2000 steps instead of default 1000)
+python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --window 2000
+
+# Export raw scalars to CSV
+python scripts/read_tb.py export tune02_bg003 --outputs-dir ../fyp-playground/outputs --format csv
+
+# Export specific tags to JSON
+python scripts/read_tb.py export tune02_bg003 --format json --tags "psnr" "main_loss"
+```
+
+### Subcommands
+
+**`summary`** — Per-experiment training summary including:
+- Loss components (final window average)
+- PSNR trajectory (final + peak)
+- Phase transitions (SeaThru spike magnitude + recovery step)
+- Convergence assessment (CONVERGED / STILL_IMPROVING / DIVERGING)
+- Medium parameter values (B_inf, learned_bg)
+
+**`compare`** — Side-by-side comparison table with one column per experiment and rows for each metric. Designed for wave-level analysis. Loads one experiment at a time to manage memory.
+
+**`export`** — Dump raw scalar time-series to CSV or JSON for external tools. Supports tag filtering by substring.
+
+### Arguments
+
+**Shared (all subcommands):**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--window <N>` | Number of final steps to average over | `1000` |
+
+**`summary`, `compare`:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring) | required |
+
+**`export`:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `path` (positional) | Single experiment path spec | required |
+| `--format {csv,json}` | Output format | `csv` |
+| `--tags <substrings...>` | Filter to tags containing these substrings | all tags |
+
+### Output format
+
+**Summary** output includes sections for training overview, PSNR, loss components, medium parameters, phase transitions, and config phases.
+
+**Compare** output is a column-oriented table grouped by category:
+```
+Metric                       exp_a/ts1    exp_b/ts2
+--------------------------------------------------
+  [Training]
+  total_steps                   30,000       30,000
+  total_loss_final            0.123456     0.134567
+  convergence                CONVERGED  STILL_IMPROVING
+
+  [PSNR]
+  psnr_final                    22.45        21.89
+  psnr_peak                     23.10        22.50
+  ...
+```
+
+**Export** CSV format: `tag,step,value` rows for all scalar events.
+
+### Dependencies
+
+- `tensorboard` (`EventAccumulator` for parsing event files)
+- `numpy` (windowed averages, linear regression)
+- `read_config.py` (`resolve_outputs_dir`, `load_config`)
+- `log_experiments.py` (`find_runs`)
+- `eval_experiments.py` (`resolve_runs`)
+
+---
+
+## dataset_quality.py
+
+Per-frame image quality assessment for dataset directories. Computes blur (Laplacian variance) and brightness (mean grayscale intensity) for every frame, flags outliers against configurable thresholds, and prints a summary report with per-frame details.
+
+### Usage
+
+```bash
+# Basic quality check on a dataset
+python scripts/dataset_quality.py /path/to/images/
+
+# Custom thresholds
+python scripts/dataset_quality.py /path/to/images/ --blur-threshold 80 --bright-low 30 --bright-high 230
+
+# Sort by blur score to find worst frames
+python scripts/dataset_quality.py /path/to/images/ --sort blur
+
+# Save report to file
+python scripts/dataset_quality.py /path/to/images/ -o quality_report.txt
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `image_dir` (positional) | Directory containing `.png` / `.jpg` images | required |
+| `--blur-threshold <float>` | Laplacian variance below this = blurry | `100.0` |
+| `--bright-low <float>` | Mean brightness below this = underexposed | `40.0` |
+| `--bright-high <float>` | Mean brightness above this = overexposed | `220.0` |
+| `--sort {name,blur,brightness}` | Sort order for per-frame table | `name` |
+| `-o, --output <file>` | Write report to file instead of stdout | stdout |
+
+### Output
+
+Report includes:
+- Directory path, frame count, resolution
+- Summary statistics (mean, median, std, min, max) for blur and brightness
+- Outlier counts by category
+- Per-frame table with blur score, brightness, and flags (`BLUR`, `DARK`, `BRIGHT`)
+
+### Dependencies
+
+- `cv2` (OpenCV) — image loading, grayscale conversion, Laplacian
+- `numpy` — summary statistics
+
+---
+
 ## dataset_depth.py
 
-Depth range statistics from COLMAP sparse reconstructions. Computes per-camera and global depth ranges so that SeaSplat medium parameters (attenuation, backscatter) can be scaled appropriately for each dataset's geometry. Supports two input modes: COLMAP binary (track-based, accurate per-camera depths) and nerfstudio transforms.json (approximate, distances to all points). Auto-detects input format from the given path.
+Depth range statistics from COLMAP sparse reconstructions. Computes per-camera and global depth ranges from 3D point clouds. Supports two input modes: COLMAP binary (track-based, accurate per-camera depths) and nerfstudio transforms.json (approximate, distances to all points). Auto-detects input format from the given path.
 
 ### Usage
 
@@ -517,12 +729,17 @@ The script auto-detects the input format from the path:
 | `--sort {name,near,far,median,range}` | Per-camera table sort order | `name` |
 | `--no-per-camera` | Omit per-camera table | off |
 | `-o, --output <file>` | Write report to file instead of stdout | stdout |
+| `--shallow-pct <int>` | Percentile threshold for SHALLOW flag | `5` |
+| `--deep-pct <int>` | Percentile threshold for DEEP flag | `95` |
+| `--narrow-factor <float>` | Factor of median range below which = NARROW | `0.5` |
+| `--wide-factor <float>` | Factor of median range above which = WIDE | `2.0` |
 
 ### Output
 
 Report includes:
 - Scene overview (camera count, point count, input mode)
 - Global depth statistics (min, max, mean, median, std, IQR, dynamic range, percentiles)
+- Flag thresholds (computed values for each flag, derived from the data and threshold parameters)
 - Text histogram of depth distribution
 - Per-camera table with near/far/median/range and flags (`SHALLOW`, `DEEP`, `NARROW`, `WIDE`)
 
@@ -530,3 +747,64 @@ Report includes:
 
 - `numpy` — distance computation, statistics
 - Python standard library only (inline COLMAP binary and PLY readers)
+
+---
+
+## dataset_underwater.py
+
+Underwater dataset characterization tool. Computes per-frame color cast, turbidity, and visibility metrics for underwater image datasets.
+
+### Usage
+
+```bash
+# Basic analysis
+python scripts/dataset_underwater.py /path/to/images/
+
+# Sort by UCIQE to find worst-quality frames
+python scripts/dataset_underwater.py /path/to/images/ --sort uciqe
+
+# JSON output to file
+python scripts/dataset_underwater.py /path/to/images/ --json -o analysis.json
+
+# Custom dark channel patch size
+python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `image_dir` (positional) | Directory containing `.png` / `.jpg` images | required |
+| `--sort {name,uciqe,uiqm,gw_dev,dcp}` | Sort order for per-frame table | `name` |
+| `--dcp-patch-size <int>` | Dark channel prior patch size | `41` |
+| `--canny-low <int>` | Canny edge detector low threshold | `50` |
+| `--canny-high <int>` | Canny edge detector high threshold | `150` |
+| `-o, --output <file>` | Write output to file instead of stdout | stdout |
+| `--json` | Output JSON instead of text | off |
+
+### Metrics
+
+**Color cast**:
+- R/G and B/G channel ratios
+- Gray-world deviation (max channel deviation from mean)
+- CIELAB a\*/b\* (color direction: blue, green, red)
+
+**Turbidity**:
+- UCIQE — underwater color image quality (saturation std + luminance contrast + saturation mean)
+- UIQM — underwater image quality measure (Panetta et al. 2016: colorfulness + sharpness + contrast)
+- Dark channel prior — min-channel + erosion statistics
+
+**Visibility**:
+- RMS contrast — grayscale standard deviation normalized by mean
+- Edge density — fraction of Canny edge pixels
+
+### Output
+
+**Text** (default): Summary statistics → compact per-frame table (R/G, B/G, GW_Dev, UCIQE, UIQM, DCP_Mean).
+
+**JSON** (`--json`): `metadata` + `summary` (all metrics with stats) + `per_frame` (all metrics per frame).
+
+### Dependencies
+
+- `cv2` (OpenCV) — color conversion, Sobel, Canny, erode
+- `numpy` — statistics, block operations
