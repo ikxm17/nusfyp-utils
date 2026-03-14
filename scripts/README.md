@@ -13,6 +13,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `render.py` | Render experiments to video (wraps `ns-render` + ffmpeg) |
 | `render_experiments.py` | Batch-render multiple experiments (wraps `render.py` for all runs) |
 | `change_config_path.py` | Rewrite hardcoded paths in nerfstudio configs for cross-machine use |
+| `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
 
 ### Script relationships
 
@@ -467,3 +468,65 @@ The script matches these `- component` line sequences and replaces them with the
 ### Dependencies
 
 - Python standard library only
+
+---
+
+## dataset_depth.py
+
+Depth range statistics from COLMAP sparse reconstructions. Computes per-camera and global depth ranges so that SeaSplat medium parameters (attenuation, backscatter) can be scaled appropriately for each dataset's geometry. Supports two input modes: COLMAP binary (track-based, accurate per-camera depths) and nerfstudio transforms.json (approximate, distances to all points). Auto-detects input format from the given path.
+
+### Usage
+
+```bash
+# COLMAP binary mode (track-based — preferred)
+python scripts/dataset_depth.py /path/to/colmap/sparse/0/
+
+# transforms.json mode (approximate)
+python scripts/dataset_depth.py /path/to/transforms.json
+
+# Auto-detect from dataset directory
+python scripts/dataset_depth.py /path/to/dataset/
+
+# Custom sort and histogram bins
+python scripts/dataset_depth.py /path/to/data --sort far --bins 30
+
+# Compact output (no per-camera table)
+python scripts/dataset_depth.py /path/to/data --no-per-camera
+
+# Save report to file
+python scripts/dataset_depth.py /path/to/data -o depth_report.txt
+```
+
+### Input auto-detection
+
+The script auto-detects the input format from the path:
+
+| Priority | Condition | Mode |
+|----------|-----------|------|
+| 1 | Path contains `images.bin` + `points3D.bin` | COLMAP binary (track-based) |
+| 2 | Path is `transforms.json` | transforms.json (approximate) |
+| 3 | Directory with `colmap/sparse/0/` subdirectory | COLMAP binary (walk) |
+| 4 | Directory with `transforms.json` | transforms.json (walk) |
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `input_path` (positional) | COLMAP sparse dir, transforms.json, or parent dataset dir | required |
+| `--bins <int>` | Histogram bin count | `20` |
+| `--sort {name,near,far,median,range}` | Per-camera table sort order | `name` |
+| `--no-per-camera` | Omit per-camera table | off |
+| `-o, --output <file>` | Write report to file instead of stdout | stdout |
+
+### Output
+
+Report includes:
+- Scene overview (camera count, point count, input mode)
+- Global depth statistics (min, max, mean, median, std, IQR, dynamic range, percentiles)
+- Text histogram of depth distribution
+- Per-camera table with near/far/median/range and flags (`SHALLOW`, `DEEP`, `NARROW`, `WIDE`)
+
+### Dependencies
+
+- `numpy` — distance computation, statistics
+- Python standard library only (inline COLMAP binary and PLY readers)
