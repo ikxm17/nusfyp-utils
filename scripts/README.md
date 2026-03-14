@@ -545,23 +545,32 @@ The script matches these `- component` line sequences and replaces them with the
 
 ## read_tb.py
 
-Reads and analyzes TensorBoard event files from nerfstudio experiment runs. Extracts per-step training data (~3000 scalar data points per tag at 30K steps logged every 10) to diagnose training dynamics: loss component dominance, PSNR trajectory, SeaThru/gray world activation stability, convergence assessment, and medium parameter evolution.
+Reads and analyzes TensorBoard event files from nerfstudio experiment runs. Extracts per-step training data (~3000 scalar data points per tag at 30K steps logged every 10) to diagnose training dynamics: loss component dominance, PSNR trajectory, SeaThru/gray world activation stability, convergence assessment, medium parameter evolution, and per-phase training health.
 
 ### Usage
 
 ```bash
-# Per-experiment training summary
+# Per-experiment training summary (includes per-phase assessment)
 python scripts/read_tb.py summary tune02_bg003 --outputs-dir ../fyp-playground/outputs
 
-# Summary for multiple experiments
-python scripts/read_tb.py summary tune02_bg003 tune02_gw005 --outputs-dir ../fyp-playground/outputs
+# Summary in JSON format
+python scripts/read_tb.py summary tune02_bg003 --json --outputs-dir ../fyp-playground/outputs
 
-# Side-by-side comparison table across wave 2 experiments
+# Side-by-side comparison table across experiments
 python scripts/read_tb.py compare tune02_bg003 tune02_bg005 tune02_gw005 tune02_gw020 \
   --outputs-dir ../fyp-playground/outputs
 
+# Comparison in JSON format
+python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --json
+
 # Use a larger averaging window (2000 steps instead of default 1000)
 python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --window 2000
+
+# Custom convergence threshold (stricter: 2% instead of default 5%)
+python scripts/read_tb.py summary tune02_bg003 --converge-threshold 0.02
+
+# Custom recovery factor (tighter: 5% instead of default 10%)
+python scripts/read_tb.py summary tune02_bg003 --recovery-factor 1.05
 
 # Export raw scalars to CSV
 python scripts/read_tb.py export tune02_bg003 --outputs-dir ../fyp-playground/outputs --format csv
@@ -578,8 +587,10 @@ python scripts/read_tb.py export tune02_bg003 --format json --tags "psnr" "main_
 - Phase transitions (SeaThru spike magnitude + recovery step)
 - Convergence assessment (CONVERGED / STILL_IMPROVING / DIVERGING)
 - Medium parameter values (B_inf, learned_bg)
+- **Per-phase assessment**: convergence, PSNR, and loss at each training phase checkpoint (Phase 1: Vanilla 3DGS → Phase 2: Transition → Phase 3: Joint Optimization)
+- **Phase 3 per-component convergence**: which individual losses are still improving or diverging
 
-**`compare`** — Side-by-side comparison table with one column per experiment and rows for each metric. Designed for wave-level analysis. Loads one experiment at a time to manage memory.
+**`compare`** — Side-by-side comparison table with one column per experiment and rows for each metric. Includes per-phase assessment rows. Designed for wave-level analysis. Loads one experiment at a time to manage memory.
 
 **`export`** — Dump raw scalar time-series to CSV or JSON for external tools. Supports tag filtering by substring.
 
@@ -591,12 +602,16 @@ python scripts/read_tb.py export tune02_bg003 --format json --tags "psnr" "main_
 |------|-------------|---------|
 | `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
 | `--window <N>` | Number of final steps to average over | `1000` |
+| `--converge-threshold <float>` | Relative slope threshold for convergence classification: > threshold = DIVERGING, < -threshold = STILL_IMPROVING | `0.05` |
+| `--recovery-factor <float>` | Factor of pre-activation loss baseline that defines recovery (1.1 = within 10%) | `1.1` |
+| `--transition-estimate <int>` | Fallback Phase 2 duration estimate (iters) when recovery step is not detected | `3000` |
 
 **`summary`, `compare`:**
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `paths` (positional) | Experiment path specs (timestamp dir, method dir, or substring) | required |
+| `--json` | Output JSON instead of human-readable text/table | off |
 
 **`export`:**
 
@@ -606,24 +621,36 @@ python scripts/read_tb.py export tune02_bg003 --format json --tags "psnr" "main_
 | `--format {csv,json}` | Output format | `csv` |
 | `--tags <substrings...>` | Filter to tags containing these substrings | all tags |
 
+### Per-phase assessment
+
+Training is divided into three phases based on config and data:
+- **Phase 1 (Vanilla 3DGS)**: `[0, seathru_from_iter)` — base geometry before medium activation
+- **Phase 2 (Transition)**: `[seathru_from_iter, recovery_step)` — medium warm-up and GS adaptation (boundary is data-driven via recovery detection, fallback: `--transition-estimate`)
+- **Phase 3 (Joint)**: `[recovery_step, max_num_iterations]` — full system convergence
+
+Each phase reports: convergence status, PSNR start→end (peak), loss start→end. Phase 2 additionally reports spike ratio and recovery duration. Phase 3 reports per-component loss convergence.
+
 ### Output format
 
-**Summary** output includes sections for training overview, PSNR, loss components, medium parameters, phase transitions, and config phases.
+**Summary** output includes sections for training overview, PSNR, loss components, medium parameters, phase transitions, config phases, and per-phase assessment.
 
-**Compare** output is a column-oriented table grouped by category:
+**Compare** output is a column-oriented table grouped by category (including per-phase rows):
 ```
 Metric                       exp_a/ts1    exp_b/ts2
 --------------------------------------------------
   [Training]
   total_steps                   30,000       30,000
-  total_loss_final            0.123456     0.134567
   convergence                CONVERGED  STILL_IMPROVING
 
-  [PSNR]
-  psnr_final                    22.45        21.89
-  psnr_peak                     23.10        22.50
+  [Per-Phase Assessment]
+  phase1_vanilla/convergence CONVERGED    CONVERGED
+  phase1_vanilla/psnr_end        27.8         27.5
+  phase3_joint/convergence   CONVERGED  STILL_IMPROVING
+  phase3_joint/psnr_peak         28.0         27.2
   ...
 ```
+
+**JSON** (`--json`): list of `{"label": "...", "summary": {...}}` objects with all computed metrics.
 
 **Export** CSV format: `tag,step,value` rows for all scalar events.
 
@@ -632,7 +659,6 @@ Metric                       exp_a/ts1    exp_b/ts2
 - `tensorboard` (`EventAccumulator` for parsing event files)
 - `numpy` (windowed averages, linear regression)
 - `read_config.py` (`resolve_outputs_dir`, `load_config`)
-- `log_experiments.py` (`find_runs`)
 - `eval_experiments.py` (`resolve_runs`)
 
 ---
