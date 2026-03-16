@@ -3,6 +3,8 @@
 Usage:
     python scripts/read_tb.py summary <paths...> [--outputs-dir <path>] [--window N]
     python scripts/read_tb.py compare <paths...> [--outputs-dir <path>] [--window N]
+    python scripts/read_tb.py compare <paths...> --verbose     # full table (agent use)
+    python scripts/read_tb.py compare <paths...> --describe    # compact + observations
     python scripts/read_tb.py export <path> [--outputs-dir <path>] [--format csv|json]
 
 Path resolution:
@@ -11,7 +13,8 @@ Path resolution:
 Subcommands:
     summary   Per-experiment training summary: loss components, PSNR trajectory,
               phase transitions, convergence assessment, medium parameters
-    compare   Side-by-side comparison table across experiments
+    compare   Side-by-side comparison table across experiments (compact by default,
+              --verbose for full table, --describe for observations)
     export    Dump raw scalar time-series to CSV or JSON
 """
 
@@ -106,6 +109,34 @@ def load_phases(run_dir):
         pass
 
     return phases
+
+
+def load_eval_metrics(run_dir):
+    """Read metrics.json from a run directory.
+
+    Returns dict with normalized keys (psnr, ssim, lpips, clean_psnr, etc.)
+    or None if not found.
+    """
+    metrics_path = Path(run_dir) / "metrics.json"
+    if not metrics_path.is_file():
+        return None
+
+    try:
+        data = json.loads(metrics_path.read_text())
+        results = data.get("results", {})
+
+        # Normalize: strip 'eval/' prefix, skip _std keys
+        normalized = {}
+        for key, val in results.items():
+            if key.endswith("_std"):
+                continue
+            clean_key = key.replace("eval/", "")
+            if isinstance(val, (int, float)):
+                normalized[clean_key] = val
+
+        return normalized
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -735,6 +766,359 @@ def format_comparison(summaries, labels):
     return "\n".join(lines)
 
 
+def format_compact_comparison(summaries, labels, eval_metrics_list):
+    """Compact human-readable comparison for the compare subcommand.
+
+    Args:
+        summaries: list of summary dicts from compute_summary().
+        labels: list of short labels.
+        eval_metrics_list: list of eval metric dicts (from metrics.json), or None entries.
+    """
+    if not summaries:
+        return "No summaries to compare."
+
+    n = len(summaries)
+
+    # Short labels: use just the experiment name portion (before /)
+    # Strip common dataset prefix (e.g. "saltpond_unprocessed-tune10_gw05" -> "tune10_gw05")
+    short_labels = []
+    for label in labels:
+        parts = label.split("/")
+        name = parts[0]
+        # Strip "<dataset>-" prefix (nerfstudio convention: experiment name = dataset-variant)
+        if "-" in name:
+            # Find the dataset prefix by checking if all labels share it
+            name = name.split("-", 1)[1]
+        short_labels.append(name)
+    # If stripping made them non-unique, fall back to the full experiment name
+    if len(set(short_labels)) < len(short_labels):
+        short_labels = [label.split("/")[0] for label in labels]
+    # If still non-unique, use full labels
+    if len(set(short_labels)) < len(short_labels):
+        short_labels = labels
+
+    # Column layout
+    metric_col = 24
+    col_width = max(max(len(l) for l in short_labels), 16)
+    annot_col = 0  # will compute after building rows
+
+    def _fmt_float(val, decimals=2):
+        if val is None:
+            return "\u2014"
+        return f"{val:.{decimals}f}"
+
+    def _fmt_int(val):
+        if val is None:
+            return "\u2014"
+        return f"{int(val):,}"
+
+    # --- Build sections as lists of (metric_name, values, annotation) ---
+    sections = []
+
+    # == Eval Metrics ==
+    eval_rows = []
+    eval_keys = [("PSNR", "psnr", 2), ("SSIM", "ssim", 3), ("LPIPS", "lpips", 3),
+                 ("Clean PSNR", "clean_psnr", 2)]
+    for display_name, key, decimals in eval_keys:
+        vals = []
+        for em in eval_metrics_list:
+            if em and key in em:
+                vals.append(_fmt_float(em[key], decimals))
+            else:
+                vals.append("\u2014")
+        eval_rows.append((display_name, vals, ""))
+    if any(v != "\u2014" for row in eval_rows for v in row[1]):
+        sections.append(("Eval Metrics", eval_rows))
+
+    # == Training Summary ==
+    train_rows = []
+
+    # Convergence
+    vals = [s.get("convergence", "\u2014") for s in summaries]
+    train_rows.append(("Convergence", vals, ""))
+
+    # Steps
+    vals = [_fmt_int(s.get("total_steps")) for s in summaries]
+    train_rows.append(("Steps", vals, ""))
+
+    # Phase 2 spike
+    spike_vals = []
+    spike_annots = []
+    for i, s in enumerate(summaries):
+        ratio = s.get("per_phase/phase2_transition/spike_ratio")
+        if ratio is not None:
+            spike_vals.append(f"{ratio:.2f}x")
+            if ratio > 10:
+                spike_annots.append((i, "critical"))
+            elif ratio > 3:
+                spike_annots.append((i, "concerning"))
+            elif ratio >= 2:
+                spike_annots.append((i, "healthy"))
+            else:
+                spike_annots.append((i, "mild"))
+        else:
+            spike_vals.append("\u2014")
+            spike_annots.append((i, ""))
+
+    # Annotation: flag only concerning/critical, or show "healthy" for all if all healthy
+    spike_annot = ""
+    concerning = [(i, a) for i, a in spike_annots if a in ("concerning", "critical")]
+    if concerning:
+        parts = []
+        for i, a in concerning:
+            parts.append(f"{short_labels[i]}: {a}" if n > 1 else a)
+        spike_annot = "; ".join(parts)
+    else:
+        healthy = [a for _, a in spike_annots if a]
+        if healthy and all(a in ("healthy", "mild") for a in healthy):
+            spike_annot = "healthy" if all(a == "healthy" for a in healthy) else ""
+    train_rows.append(("Phase 2 spike", spike_vals, spike_annot))
+
+    # Phase 2 recovery
+    recovery_vals = []
+    recovery_annots = []
+    for i, s in enumerate(summaries):
+        steps = s.get("per_phase/phase2_transition/recovery_steps")
+        if steps is not None:
+            recovery_vals.append(f"{int(steps):,} steps")
+            if steps > 3000:
+                recovery_annots.append(f"{short_labels[i]}: slow (>3k)" if n > 1 else "slow (>3k)")
+        else:
+            recovery_vals.append("\u2014")
+    recovery_annot = "; ".join(recovery_annots) if recovery_annots else ""
+    train_rows.append(("Phase 2 recovery", recovery_vals, recovery_annot))
+
+    # Phase 3 PSNR trend
+    trend_vals = []
+    trend_annots = []
+    for i, s in enumerate(summaries):
+        psnr_start = s.get("per_phase/phase3_joint/psnr_start")
+        psnr_end = s.get("per_phase/phase3_joint/psnr_end")
+        if psnr_start is not None and psnr_end is not None:
+            delta = psnr_end - psnr_start
+            sign = "+" if delta >= 0 else ""
+            trend_vals.append(f"{sign}{delta:.2f} dB")
+            if delta < 0:
+                trend_annots.append(f"{short_labels[i]}: declining" if n > 1 else "declining")
+        else:
+            trend_vals.append("\u2014")
+    trend_annot = "; ".join(trend_annots) if trend_annots else ""
+    train_rows.append(("Phase 3 PSNR trend", trend_vals, trend_annot))
+
+    # Gaussians
+    vals = [_fmt_int(s.get("gaussian_count")) for s in summaries]
+    train_rows.append(("Gaussians", vals, ""))
+
+    sections.append(("Training Summary", train_rows))
+
+    # == Loss Budget (Phase 3 final) ==
+    # Find top 3 loss components by magnitude across all experiments
+    loss_keys = set()
+    for s in summaries:
+        for k in s:
+            if k.startswith("per_phase/phase3_joint/losses/") and k.endswith("_end"):
+                comp = k.split("/losses/")[1].replace("_end", "")
+                loss_keys.add(comp)
+
+    if loss_keys:
+        # Rank by max absolute value across experiments
+        comp_max = {}
+        for comp in loss_keys:
+            key = f"per_phase/phase3_joint/losses/{comp}_end"
+            max_val = 0
+            for s in summaries:
+                v = s.get(key)
+                if v is not None and abs(v) > max_val:
+                    max_val = abs(v)
+            comp_max[comp] = max_val
+
+        top_comps = sorted(comp_max, key=comp_max.get, reverse=True)[:3]
+
+        loss_rows = []
+        for comp in top_comps:
+            key = f"per_phase/phase3_joint/losses/{comp}_end"
+            vals = []
+            for s in summaries:
+                val = s.get(key)
+                total = s.get("per_phase/phase3_joint/loss_end")
+                if val is not None and total is not None and total > 0:
+                    pct = val / total * 100
+                    vals.append(f"{pct:.0f}% ({val:.3f})")
+                elif val is not None:
+                    vals.append(f"({val:.3f})")
+                else:
+                    vals.append("\u2014")
+            loss_rows.append((comp, vals, ""))
+
+        if loss_rows:
+            sections.append(("Loss Budget (Phase 3 final)", loss_rows))
+
+    # == Medium Parameters ==
+    medium_rows = []
+
+    # B_inf (RGB)
+    binf_vals = []
+    binf_annots = []
+    for i, s in enumerate(summaries):
+        r = s.get("medium/binf_r")
+        g = s.get("medium/binf_g")
+        b = s.get("medium/binf_b")
+        if r is not None and g is not None and b is not None:
+            binf_vals.append(f"{r:.3f}, {g:.3f}, {b:.3f}")
+            high_channels = []
+            if r > 0.5:
+                high_channels.append("r")
+            if g > 0.5:
+                high_channels.append("g")
+            if b > 0.5:
+                high_channels.append("b")
+            if high_channels:
+                ch_str = ",".join(high_channels)
+                binf_annots.append(
+                    f"{short_labels[i]}: B_inf_{ch_str} high" if n > 1
+                    else f"B_inf_{ch_str} high"
+                )
+        else:
+            binf_vals.append("\u2014")
+    binf_annot = "; ".join(binf_annots) if binf_annots else ""
+    medium_rows.append(("B_inf (RGB)", binf_vals, binf_annot))
+
+    # Background (RGB)
+    bg_vals = []
+    for s in summaries:
+        r = s.get("medium/bg_r")
+        g = s.get("medium/bg_g")
+        b = s.get("medium/bg_b")
+        if r is not None and g is not None and b is not None:
+            bg_vals.append(f"{r:.3f}, {g:.3f}, {b:.3f}")
+        else:
+            bg_vals.append("\u2014")
+    medium_rows.append(("Background (RGB)", bg_vals, ""))
+
+    if any(v != "\u2014" for row in medium_rows for v in row[1]):
+        sections.append(("Medium Parameters", medium_rows))
+
+    # --- Render output ---
+    lines = []
+
+    # Header
+    header = " " * metric_col
+    for l in short_labels:
+        header += f"  {l:>{col_width}}"
+    lines.append(header)
+
+    for section_name, rows in sections:
+        lines.append(section_name)
+        for metric_name, vals, annot in rows:
+            row = f"  {metric_name:<{metric_col - 2}}"
+            for v in vals:
+                row += f"  {v:>{col_width}}"
+            if annot:
+                row += f"    {annot}"
+            lines.append(row)
+        lines.append("")  # blank line between sections
+
+    return "\n".join(lines)
+
+
+def generate_observations(summaries, labels, eval_metrics_list):
+    """Generate textual observations by applying threshold rules to comparison data.
+
+    Returns a list of observation strings, or empty list if nothing to flag.
+    """
+    observations = []
+    n = len(summaries)
+
+    # Short labels (same logic as format_compact_comparison)
+    short_labels = []
+    for label in labels:
+        parts = label.split("/")
+        name = parts[0]
+        if "-" in name:
+            name = name.split("-", 1)[1]
+        short_labels.append(name)
+    if len(set(short_labels)) < len(short_labels):
+        short_labels = [label.split("/")[0] for label in labels]
+    if len(set(short_labels)) < len(short_labels):
+        short_labels = labels
+
+    for i, s in enumerate(summaries):
+        name = short_labels[i]
+        convergence = s.get("convergence", "UNKNOWN")
+        psnr_start = s.get("per_phase/phase3_joint/psnr_start")
+        psnr_end = s.get("per_phase/phase3_joint/psnr_end")
+        spike_ratio = s.get("per_phase/phase2_transition/spike_ratio")
+        recovery_steps = s.get("per_phase/phase2_transition/recovery_steps")
+        total_steps = s.get("total_steps")
+
+        # Phase 3 PSNR trend
+        phase3_delta = None
+        if psnr_start is not None and psnr_end is not None:
+            phase3_delta = psnr_end - psnr_start
+
+        # STILL_IMPROVING + positive Phase 3 trend -> consider extending
+        if convergence == "STILL_IMPROVING" and phase3_delta is not None and phase3_delta > 0:
+            steps_str = f"{int(total_steps):,}" if total_steps else "?"
+            observations.append(
+                f"{name}: STILL_IMPROVING at {steps_str} \u2014 Phase 3 gaining "
+                f"+{phase3_delta:.2f} dB, consider extending"
+            )
+
+        # recovery_steps > 3000 -> slow recovery
+        if recovery_steps is not None and recovery_steps > 3000:
+            observations.append(
+                f"{name}: Phase 2 recovery slow ({int(recovery_steps):,} steps > 3,000 threshold) "
+                f"\u2014 consider later activation"
+            )
+
+        # Phase 3 PSNR declining
+        if phase3_delta is not None and phase3_delta < 0:
+            observations.append(
+                f"{name}: Phase 3 PSNR declining ({phase3_delta:+.2f} dB)"
+                + (" despite CONVERGED status \u2014 converged to suboptimal solution"
+                   if convergence == "CONVERGED" else "")
+            )
+
+        # Any single loss > 50% of total
+        total_loss_end = s.get("per_phase/phase3_joint/loss_end")
+        if total_loss_end and total_loss_end > 0:
+            for k, v in s.items():
+                if (k.startswith("per_phase/phase3_joint/losses/")
+                        and k.endswith("_end")
+                        and not k.endswith("_convergence")):
+                    comp = k.split("/losses/")[1].replace("_end", "")
+                    if v is not None and v / total_loss_end > 0.5:
+                        pct = v / total_loss_end * 100
+                        observations.append(
+                            f"{name}: {comp} dominates loss budget ({pct:.0f}%) "
+                            f"\u2014 {comp} lambda may be too high"
+                        )
+
+        # B_inf any channel > 0.5
+        for ch, ch_name in [("binf_r", "B_inf_r"), ("binf_g", "B_inf_g"), ("binf_b", "B_inf_b")]:
+            val = s.get(f"medium/{ch}")
+            if val is not None and val > 0.5:
+                observations.append(
+                    f"{name}: {ch_name}={val:.3f} implausibly high "
+                    f"\u2014 medium may be absorbing per-view variation"
+                )
+
+        # spike_ratio > 3
+        if spike_ratio is not None:
+            if spike_ratio > 10:
+                observations.append(
+                    f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 critical, "
+                    f"may permanently damage geometry"
+                )
+            elif spike_ratio > 3:
+                observations.append(
+                    f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 concerning, "
+                    f"consider later activation or smaller learning rates"
+                )
+
+    return observations
+
+
 # ---------------------------------------------------------------------------
 # Export
 # ---------------------------------------------------------------------------
@@ -826,6 +1210,7 @@ def cmd_compare(args):
 
     summaries = []
     labels = []
+    run_dirs = []
 
     for spec in args.paths:
         runs = resolve_runs(spec, outputs_dir)
@@ -846,6 +1231,7 @@ def cmd_compare(args):
             summary = compute_summary(scalars, phases, args.window, **kwargs)
             summaries.append(summary)
             labels.append(label)
+            run_dirs.append(run_dir)
 
             # Release memory before loading next
             del scalars
@@ -854,12 +1240,31 @@ def cmd_compare(args):
         print("No experiments with TensorBoard data found.", file=sys.stderr)
         sys.exit(1)
 
+    # Load eval metrics once (needed for compact mode and/or --describe)
+    eval_metrics_list = None
+    if not args.json and (not args.verbose or args.describe):
+        eval_metrics_list = [load_eval_metrics(rd) for rd in run_dirs]
+
     if args.json:
         data = [{"label": l, "summary": s} for l, s in zip(labels, summaries)]
         json.dump(data, sys.stdout, indent=2, default=_json_default)
         sys.stdout.write("\n")
-    else:
+    elif args.verbose:
         print(format_comparison(summaries, labels))
+    else:
+        # Compact mode (default)
+        print(format_compact_comparison(summaries, labels, eval_metrics_list))
+
+    if args.describe and not args.json:
+        obs = generate_observations(summaries, labels, eval_metrics_list)
+        if obs:
+            print()
+            print("Observations:")
+            for o in obs:
+                print(f"  - {o}")
+        else:
+            print()
+            print("Observations: (none flagged)")
 
 
 def cmd_export(args):
@@ -971,6 +1376,14 @@ def main():
     compare_parser.add_argument(
         "--json", action="store_true",
         help="Output JSON instead of human-readable table",
+    )
+    compare_parser.add_argument(
+        "--verbose", action="store_true",
+        help="Show full comparison table (default: compact human-readable output)",
+    )
+    compare_parser.add_argument(
+        "--describe", action="store_true",
+        help="Add textual observations after the table (combinable with default or --verbose)",
     )
 
     # export subcommand

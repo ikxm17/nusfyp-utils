@@ -169,7 +169,7 @@ def run_tb_analysis(experiments, outputs_dir):
         return "No experiments to compare."
 
     exp_names = [name for name, _ in experiments]
-    args = ["compare"] + exp_names + ["--outputs-dir", str(outputs_dir)]
+    args = ["compare"] + exp_names + ["--verbose", "--outputs-dir", str(outputs_dir)]
     stdout, stderr, rc = run_script("read_tb.py", args)
 
     if rc != 0:
