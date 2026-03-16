@@ -18,6 +18,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `dataset_quality.py` | Per-frame image quality assessment (blur, brightness, outlier detection) |
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
 | `dataset_underwater.py` | Underwater dataset characterization |
+| `analyze_batch.py` | Gather all quantitative analysis for a batch of experiments into structured JSON |
 
 ### Script relationships
 
@@ -38,6 +39,10 @@ read_config.py ──> read_tb.py              (TB reader uses reader for path r
 log_experiments.py ──> read_tb.py          (uses find_runs for run discovery)
 eval_experiments.py ──> read_tb.py         (uses resolve_runs for flexible path specs)
 change_config_path.py                       (standalone — used manually when moving between machines)
+
+read_tb.py ──> analyze_batch.py            (batch analyzer calls TB comparison)
+compare_renders.py ──> analyze_batch.py    (batch analyzer calls grid + extract)
+dataset_underwater.py ──> analyze_batch.py (batch analyzer calls color analysis)
 ```
 
 ---
@@ -834,3 +839,89 @@ python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
 
 - `cv2` (OpenCV) — color conversion, Sobel, Canny, erode
 - `numpy` — statistics, block operations
+
+---
+
+## analyze_batch.py
+
+Gathers all quantitative analysis for a batch of experiments into a single structured JSON report. Replaces ~25 individual tool calls during auto-analyze with one script invocation. Orchestrates existing scripts (`read_tb.py`, `compare_renders.py`, `dataset_underwater.py`) via subprocess calls and combines their outputs with `metrics.json` data and dataset input analysis.
+
+### Usage
+
+```bash
+# Full analysis for a batch
+python scripts/analyze_batch.py tune10 \
+    --outputs-dir ../fyp-playground/outputs \
+    --analysis-dir /tmp/batch-analysis \
+    --dataset-analysis ../fyp-playground/datasets/saltpond/analysis.md \
+    --num-frames 3 \
+    --output-types rgb underwater_rgb depth \
+    --max-width 480
+
+# Minimal (just metrics + TB, skip visual analysis)
+python scripts/analyze_batch.py tune10 \
+    --outputs-dir ../fyp-playground/outputs \
+    --analysis-dir /tmp/batch-analysis \
+    --num-frames 0
+
+# Default output types (rgb, underwater_rgb, depth, accumulation, backscatter, attenuation_map)
+python scripts/analyze_batch.py tune10 --outputs-dir ../fyp-playground/outputs
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `batch_prefix` (positional) | Batch prefix to match experiments (e.g. `tune10` matches `tune10_*`) | required |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--analysis-dir <path>` | Directory for analysis artifacts (grids, renders, report) | `/tmp/batch-analysis` |
+| `--dataset-analysis <path>` | Path to dataset `analysis.md` for input color metrics comparison | none |
+| `--num-frames <N>` | Number of representative frames to extract and analyze | `3` |
+| `--output-types <types...>` | Output types for comparison grids | `rgb underwater_rgb depth accumulation backscatter attenuation_map` |
+| `--max-width <pixels>` | Max image width for renders | `480` |
+
+### What it does (in order)
+
+1. **Find experiments**: Glob for `<batch_prefix>_*` in the outputs directory
+2. **Read metrics**: Load `metrics.json` (PSNR, SSIM, LPIPS, clean_psnr, etc.)
+3. **TB analysis**: Run `read_tb.py compare` across all experiments
+4. **Render info**: Get total frame count via `compare_renders.py info`
+5. **Pick frames**: Evenly space `--num-frames` frames across the render
+6. **Comparison grids**: Generate experiment x output type matrices via `compare_renders.py grid`
+7. **Extract renders**: Pull rgb frames for each experiment via `compare_renders.py extract`
+8. **Color analysis**: Run `dataset_underwater.py --json` on extracted renders
+9. **Dataset input metrics**: Parse `analysis.md` for input color cast baselines
+
+### Output
+
+Writes `report.json` to `--analysis-dir` with:
+- `batch_prefix`, `experiments` (list of names)
+- `metrics` — per-experiment eval metrics (PSNR, SSIM, LPIPS, clean_psnr, etc.)
+- `tb_analysis` — full text output from `read_tb.py compare`
+- `render_info` — total frame count and selected frame indices
+- `grid_images` — paths to generated comparison grid PNGs
+- `color_analysis` — per-experiment color metrics (R/G ratio, gray-world deviation, CIELAB, DCP)
+- `dataset_input_metrics` — input dataset color metrics (if `--dataset-analysis` provided)
+
+Also generates artifacts in `--analysis-dir`:
+```
+<analysis-dir>/
+├── report.json
+├── grids/grid/grid_frame{NNN}.png
+└── renders/extract/{experiment}/rgb_frame{NNN}.png
+```
+
+Prints progress to stderr and the report path to stdout (last line).
+
+### Notes / Caveats
+
+- Handles missing data gracefully — if TB files, renders, or metrics are missing, the corresponding fields are set to error messages, empty lists, or null
+- TensorBoard loading is the main bottleneck (~30-60s for 4 experiments)
+- Set `--num-frames 0` to skip all visual analysis (grids, extracts, color analysis)
+
+### Dependencies
+
+- `read_tb.py` (subprocess: TensorBoard comparison)
+- `compare_renders.py` (subprocess: frame extraction and grid composition)
+- `dataset_underwater.py` (subprocess: color analysis on rendered frames)
+- Python standard library only (no direct third-party imports)
