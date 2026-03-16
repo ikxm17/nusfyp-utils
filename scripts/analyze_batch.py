@@ -6,7 +6,7 @@ Usage:
     python scripts/analyze_batch.py tune10 \
         --outputs-dir ../fyp-playground/outputs \
         --analysis-dir /tmp/batch-analysis \
-        --dataset-analysis ../fyp-playground/datasets/saltpond/analysis.md \
+        --dataset-analysis ../fyp-playground/datasets/saltpond/saltpond_unprocessed/analysis.md \
         --num-frames 3 \
         --output-types rgb underwater_rgb depth \
         --max-width 480
@@ -469,10 +469,13 @@ def main():
     analysis_dir = Path(args.analysis_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
 
+    warnings = []
+
     report = {
         "batch_prefix": args.batch_prefix,
         "experiments": [],
         "analysis_dir": str(analysis_dir),
+        "warnings": warnings,
         "metrics": {},
         "tb_analysis": None,
         "render_info": {
@@ -491,7 +494,9 @@ def main():
     experiments = find_experiments(outputs_dir, args.batch_prefix)
 
     if not experiments:
-        log(f"  No experiments found matching '{args.batch_prefix}_*' in {outputs_dir}")
+        msg = f"No experiments found matching '{args.batch_prefix}_*' in {outputs_dir}"
+        log(f"  {msg}")
+        warnings.append({"step": "find_experiments", "message": msg, "path": str(outputs_dir)})
         report["tb_analysis"] = "No experiments found."
         # Write report and exit
         report_path = analysis_dir / "report.json"
@@ -515,7 +520,9 @@ def main():
                 f"SSIM={metrics.get('ssim', '?'):.3f}, "
                 f"LPIPS={metrics.get('lpips', '?'):.3f}")
         else:
-            log(f"  {exp_name}: no metrics.json found")
+            msg = f"{exp_name}: metrics.json not found at {ts_dir / 'metrics.json'}"
+            log(f"  {msg}")
+            warnings.append({"step": "read_metrics", "message": msg, "path": str(ts_dir / "metrics.json")})
 
     # -----------------------------------------------------------------------
     # Step 3: TB analysis
@@ -537,6 +544,10 @@ def main():
 
     report["render_info"]["total_frames"] = total_frames
     log(f"  Total frames: {total_frames}")
+
+    if total_frames == 0:
+        msg = "No render frames found for any experiment — renders may have failed"
+        warnings.append({"step": "render_info", "message": msg})
 
     # -----------------------------------------------------------------------
     # Step 5: Pick representative frames
@@ -591,8 +602,20 @@ def main():
     report["dataset_input_metrics"] = parse_dataset_analysis(args.dataset_analysis)
     if report["dataset_input_metrics"]:
         log(f"  Parsed {len(report['dataset_input_metrics'])} input metrics")
+    elif args.dataset_analysis:
+        msg = f"Dataset analysis file not found or unreadable: {args.dataset_analysis}"
+        warnings.append({"step": "dataset_analysis", "message": msg, "path": args.dataset_analysis})
+        log(f"  {msg}")
     else:
-        log("  No dataset input metrics available")
+        log("  No dataset analysis path provided (--dataset-analysis not set)")
+
+    # -----------------------------------------------------------------------
+    # Warnings summary
+    # -----------------------------------------------------------------------
+    if warnings:
+        log(f"\n⚠ {len(warnings)} warning(s) during data gathering:")
+        for w in warnings:
+            log(f"  [{w['step']}] {w['message']}")
 
     # -----------------------------------------------------------------------
     # Write report
