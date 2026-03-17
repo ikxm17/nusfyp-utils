@@ -7,6 +7,7 @@
 # Usage:
 #   ./cluster/scripts/sync_results.sh                        # Sync metrics + configs only
 #   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
+#   ./cluster/scripts/sync_results.sh --include-tb --tb-filter "tune18_*"  # Sync TB for matching experiments only
 #   ./cluster/scripts/sync_results.sh --cleanup              # Sync, then delete outputs/logs from scratch
 #
 # Prerequisites:
@@ -35,22 +36,36 @@ NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
 INCLUDE_TB=false
+TB_FILTER=""
 CLEANUP=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --include-checkpoints) INCLUDE_CHECKPOINTS=true; shift ;;
         --include-tb) INCLUDE_TB=true; shift ;;
+        --tb-filter) TB_FILTER="$2"; shift 2 ;;
         --cleanup) CLEANUP=true; shift ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
+# Validate: --tb-filter requires --include-tb
+if [ -n "$TB_FILTER" ] && [ "$INCLUDE_TB" = false ]; then
+    echo "Error: --tb-filter requires --include-tb"
+    exit 1
+fi
+
 # Build rsync exclude list
 EXCLUDES=()
 if [ "$INCLUDE_TB" = false ]; then
+    # Exclude all tfevents
+    EXCLUDES+=(--exclude "events.out.tfevents.*")
+elif [ -n "$TB_FILTER" ]; then
+    # Include tfevents only for matching experiments, exclude the rest
+    EXCLUDES+=(--include "**/*-${TB_FILTER}*/**/events.out.tfevents.*")
     EXCLUDES+=(--exclude "events.out.tfevents.*")
 fi
+# When --include-tb without --tb-filter: no exclude rule → all tfevents synced (backward compat)
 if [ "$INCLUDE_CHECKPOINTS" = false ]; then
     EXCLUDES+=(--exclude "*.ckpt")
 fi
@@ -58,7 +73,11 @@ fi
 echo "==> Syncing outputs from ${CLUSTER_REMOTE}:${REMOTE_OUTPUTS}"
 echo "    to ${LOCAL_OUTPUTS}"
 echo "    Checkpoints: $([ "$INCLUDE_CHECKPOINTS" = true ] && echo "included" || echo "excluded")"
-echo "    TensorBoard: $([ "$INCLUDE_TB" = true ] && echo "included" || echo "excluded")"
+if [ "$INCLUDE_TB" = true ] && [ -n "$TB_FILTER" ]; then
+    echo "    TensorBoard: included (filter: *-${TB_FILTER}*)"
+else
+    echo "    TensorBoard: $([ "$INCLUDE_TB" = true ] && echo "included" || echo "excluded")"
+fi
 
 mkdir -p "$LOCAL_OUTPUTS"
 
