@@ -79,9 +79,16 @@ def _descend_to_config(directory):
 
 
 def _find_matching_dirs(spec, outputs_dir):
-    """Substring search for matching dataset/experiment directories."""
+    """Search for matching dataset/experiment directories.
+
+    Prefers exact match on the experiment suffix (after stripping dataset
+    prefix) before falling back to substring matching.  This avoids
+    ambiguity when one experiment name is a prefix of another (e.g.
+    ``tune02_seathru18k`` vs ``tune02_seathru18k_gw20``).
+    """
     outputs_dir = Path(outputs_dir)
     matches = []
+    exact = []
 
     if not outputs_dir.is_dir():
         return matches
@@ -89,14 +96,22 @@ def _find_matching_dirs(spec, outputs_dir):
     for dataset_dir in sorted(outputs_dir.iterdir()):
         if not dataset_dir.is_dir():
             continue
+        prefix = dataset_dir.name + "-"
         for experiment_dir in sorted(dataset_dir.iterdir()):
             if not experiment_dir.is_dir():
                 continue
             relative = f"{dataset_dir.name}/{experiment_dir.name}"
-            if spec in relative:
+            # Derive the short experiment name (strip dataset prefix)
+            short = experiment_dir.name
+            if short.startswith(prefix):
+                short = short[len(prefix):]
+            # Check for exact match on short name or full relative path
+            if spec == short or spec == experiment_dir.name or spec == relative:
+                exact.append(experiment_dir)
+            elif spec in relative:
                 matches.append(experiment_dir)
 
-    return matches
+    return exact if exact else matches
 
 
 def resolve_config_path(spec, outputs_dir):
