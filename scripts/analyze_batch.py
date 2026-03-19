@@ -143,6 +143,83 @@ def find_experiments(outputs_dir, batch_prefix, dataset=None):
 
 
 # ---------------------------------------------------------------------------
+# Step 1b: Extract timing from logs
+# ---------------------------------------------------------------------------
+
+def extract_timing(experiments, logs_dir, dataset):
+    """Extract training, eval, and render durations from synced log files.
+
+    Parses:
+        - train.log:  "<dataset>/<suffix> success   54.2 min"
+        - eval.log:   "sea-splatfacto/<timestamp>   success   29.7s ..."
+        - render.log: "sea-splatfacto/<timestamp>   dataset: success   42.9s"
+
+    Returns dict mapping experiment short name to timing dict.
+    """
+    timing = {}
+    logs_path = Path(logs_dir)
+
+    # Build lookup: short_name -> timestamp dir name
+    ts_lookup = {}
+    for exp_name, _, ts_dir in experiments:
+        ts_lookup[exp_name] = ts_dir.name
+
+    # --- Training time from train.log ---
+    train_log = logs_path / "train.log"
+    if train_log.is_file():
+        text = train_log.read_text()
+        for exp_name, _, _ in experiments:
+            # Match: "<dataset>/<exp_name> success   54.2 min"
+            # The suffix in the log is the short name without dataset prefix
+            pattern = rf"{re.escape(dataset)}/{re.escape(exp_name)}\s+success\s+([\d.]+)\s+min"
+            match = re.search(pattern, text)
+            if match:
+                timing.setdefault(exp_name, {})["train_min"] = float(match.group(1))
+
+    # --- Eval time from eval.log ---
+    eval_log = logs_path / "eval.log"
+    if eval_log.is_file():
+        text = eval_log.read_text()
+        for exp_name, _, ts_dir in experiments:
+            ts = ts_dir.name
+            # Match: "sea-splatfacto/<timestamp>   success   29.7s ..."
+            pattern = rf"sea-splatfacto/{re.escape(ts)}\s+success\s+([\d.]+)s"
+            match = re.search(pattern, text)
+            if match:
+                timing.setdefault(exp_name, {})["eval_sec"] = float(match.group(1))
+
+    # --- Render time from render.log ---
+    render_log = logs_path / "render.log"
+    if render_log.is_file():
+        text = render_log.read_text()
+        for exp_name, _, ts_dir in experiments:
+            ts = ts_dir.name
+            # Match: "sea-splatfacto/<timestamp>   dataset: success   42.9s"
+            pattern = rf"sea-splatfacto/{re.escape(ts)}\s+dataset: success\s+([\d.]+)s"
+            match = re.search(pattern, text)
+            if match:
+                timing.setdefault(exp_name, {})["render_sec"] = float(match.group(1))
+
+    # --- Compute per-step ms from training time + step count ---
+    # Step count comes from metrics.json (num_rays_per_sec implies steps ran)
+    # or from the TB analysis total_steps. We just use train_min / max_iters.
+    for exp_name, _, ts_dir in experiments:
+        if exp_name not in timing or "train_min" not in timing[exp_name]:
+            continue
+        config_path = ts_dir / "config.yml"
+        if config_path.is_file():
+            # Quick parse: look for max_num_iterations in config
+            config_text = config_path.read_text()
+            match = re.search(r"max_num_iterations:\s*(\d+)", config_text)
+            if match:
+                max_iters = int(match.group(1))
+                train_sec = timing[exp_name]["train_min"] * 60
+                timing[exp_name]["per_step_ms"] = round(train_sec / max_iters * 1000, 2)
+
+    return timing
+
+
+# ---------------------------------------------------------------------------
 # Step 2: Read metrics
 # ---------------------------------------------------------------------------
 
@@ -478,6 +555,12 @@ def main():
              "When omitted, all datasets are searched (may cause cross-dataset "
              "contamination if the batch prefix is not unique).",
     )
+    parser.add_argument(
+        "--logs-dir",
+        default=None,
+        help="Directory containing train.log, eval.log, render.log "
+             "(default: <outputs-dir>/../logs)",
+    )
 
     args = parser.parse_args()
 
@@ -511,13 +594,14 @@ def main():
         },
         "grid_images": [],
         "color_analysis": {},
+        "timing": {},
         "dataset_input_metrics": None,
     }
 
     # -----------------------------------------------------------------------
     # Step 1: Find experiments
     # -----------------------------------------------------------------------
-    log(f"[1/9] Finding experiments matching '{args.batch_prefix}_*'"
+    log(f"[1/10] Finding experiments matching '{args.batch_prefix}_*'"
         + (f" in {args.dataset}..." if args.dataset else "..."))
     experiments = find_experiments(outputs_dir, args.batch_prefix, dataset=args.dataset)
 
@@ -539,7 +623,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 2: Read metrics
     # -----------------------------------------------------------------------
-    log("[2/9] Reading metrics.json for each experiment...")
+    log("[2/10] Reading metrics.json for each experiment...")
     for exp_name, _, ts_dir in experiments:
         metrics = read_metrics(ts_dir)
         if metrics:
@@ -553,15 +637,44 @@ def main():
             warnings.append({"step": "read_metrics", "message": msg, "path": str(ts_dir / "metrics.json")})
 
     # -----------------------------------------------------------------------
+    # Step 2b: Extract timing from logs
+    # -----------------------------------------------------------------------
+    logs_dir = args.logs_dir or str(outputs_dir.parent / "logs")
+    if args.dataset:
+        log(f"[2b/10] Extracting timing from logs ({logs_dir})...")
+        timing = extract_timing(experiments, logs_dir, args.dataset)
+        report["timing"] = timing
+        if timing:
+            for exp_name in exp_names:
+                t = timing.get(exp_name, {})
+                parts = []
+                if "train_min" in t:
+                    parts.append(f"train={t['train_min']:.1f}min")
+                if "eval_sec" in t:
+                    parts.append(f"eval={t['eval_sec']:.1f}s")
+                if "render_sec" in t:
+                    parts.append(f"render={t['render_sec']:.1f}s")
+                if "per_step_ms" in t:
+                    parts.append(f"step={t['per_step_ms']:.1f}ms")
+                if parts:
+                    log(f"  {exp_name}: {', '.join(parts)}")
+                else:
+                    log(f"  {exp_name}: no timing data found")
+        else:
+            log("  No timing data found in logs")
+    else:
+        log("[2b/10] Skipping timing — --dataset required to match train.log entries")
+
+    # -----------------------------------------------------------------------
     # Step 3: TB analysis
     # -----------------------------------------------------------------------
-    log("[3/9] Running TensorBoard analysis...")
+    log("[3/10] Running TensorBoard analysis...")
     report["tb_analysis"] = run_tb_analysis(experiments, outputs_dir)
 
     # -----------------------------------------------------------------------
     # Step 4: Render info
     # -----------------------------------------------------------------------
-    log("[4/9] Getting render frame count...")
+    log("[4/10] Getting render frame count...")
     exp_specs = [spec for _, spec, _ in experiments]
     total_frames = get_render_info(exp_specs[0], outputs_dir)
     if total_frames == 0:
@@ -581,7 +694,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 5: Pick representative frames
     # -----------------------------------------------------------------------
-    log("[5/9] Selecting representative frames...")
+    log("[5/10] Selecting representative frames...")
     selected_frames = pick_frames(total_frames, args.num_frames)
     report["render_info"]["selected_frames"] = selected_frames
     log(f"  Selected frames: {selected_frames}")
@@ -590,7 +703,7 @@ def main():
     # Step 6: Generate comparison grids
     # -----------------------------------------------------------------------
     if selected_frames:
-        log("[6/9] Generating comparison grids...")
+        log("[6/10] Generating comparison grids...")
         grid_images = generate_grids(
             experiments, selected_frames, args.output_types,
             analysis_dir, outputs_dir, args.max_width,
@@ -598,36 +711,36 @@ def main():
         report["grid_images"] = grid_images
         log(f"  Generated {len(grid_images)} grid images")
     else:
-        log("[6/9] Skipping grids — no frames available")
+        log("[6/10] Skipping grids — no frames available")
 
     # -----------------------------------------------------------------------
     # Step 7: Extract clean renders
     # -----------------------------------------------------------------------
     if selected_frames:
-        log("[7/9] Extracting clean renders (rgb)...")
+        log("[7/10] Extracting clean renders (rgb)...")
         extract_dirs = extract_renders(
             experiments, selected_frames, analysis_dir, outputs_dir,
             args.max_width,
         )
         log(f"  Extracted renders for {len(extract_dirs)} experiments")
     else:
-        log("[7/9] Skipping render extraction — no frames available")
+        log("[7/10] Skipping render extraction — no frames available")
         extract_dirs = {}
 
     # -----------------------------------------------------------------------
     # Step 8: Color analysis
     # -----------------------------------------------------------------------
     if extract_dirs:
-        log("[8/9] Running color analysis on extracted renders...")
+        log("[8/10] Running color analysis on extracted renders...")
         report["color_analysis"] = run_color_analysis(extract_dirs)
         log(f"  Color analysis complete for {len(report['color_analysis'])} experiments")
     else:
-        log("[8/9] Skipping color analysis — no extracted renders")
+        log("[8/10] Skipping color analysis — no extracted renders")
 
     # -----------------------------------------------------------------------
     # Step 9: Parse dataset input analysis
     # -----------------------------------------------------------------------
-    log("[9/9] Parsing dataset input analysis...")
+    log("[9/10] Parsing dataset input analysis...")
     report["dataset_input_metrics"] = parse_dataset_analysis(args.dataset_analysis)
     if report["dataset_input_metrics"]:
         log(f"  Parsed {len(report['dataset_input_metrics'])} input metrics")
