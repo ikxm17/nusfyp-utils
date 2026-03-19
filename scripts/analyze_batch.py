@@ -216,6 +216,18 @@ def extract_timing(experiments, logs_dir, dataset):
                 train_sec = timing[exp_name]["train_min"] * 60
                 timing[exp_name]["per_step_ms"] = round(train_sec / max_iters * 1000, 2)
 
+    # --- Render FPS from metrics.json ---
+    for exp_name, _, ts_dir in experiments:
+        metrics_path = ts_dir / "metrics.json"
+        if metrics_path.is_file():
+            try:
+                data = json.loads(metrics_path.read_text())
+                fps = data.get("results", {}).get("fps")
+                if fps is not None:
+                    timing.setdefault(exp_name, {})["render_fps"] = round(float(fps), 1)
+            except (json.JSONDecodeError, OSError):
+                pass
+
     return timing
 
 
@@ -656,6 +668,8 @@ def main():
                     parts.append(f"render={t['render_sec']:.1f}s")
                 if "per_step_ms" in t:
                     parts.append(f"step={t['per_step_ms']:.1f}ms")
+                if "render_fps" in t:
+                    parts.append(f"fps={t['render_fps']:.1f}")
                 if parts:
                     log(f"  {exp_name}: {', '.join(parts)}")
                 else:
