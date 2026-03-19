@@ -107,7 +107,7 @@ def check_existing_renders(
             for output_name in rendered_output_names:
                 video = renders_dir / "dataset" / split / f"{output_name}.mp4"
                 rel = str(video.relative_to(run_dir))
-                if video.is_file():
+                if video.is_file() and video.stat().st_size > 0:
                     existing.append(rel)
                 else:
                     missing.append(rel)
@@ -117,7 +117,7 @@ def check_existing_renders(
             for output_name in rendered_output_names:
                 video = renders_dir / "camera-path" / cp.stem / f"{output_name}.mp4"
                 rel = str(video.relative_to(run_dir))
-                if video.is_file():
+                if video.is_file() and video.stat().st_size > 0:
                     existing.append(rel)
                 else:
                     missing.append(rel)
