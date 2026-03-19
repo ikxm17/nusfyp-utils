@@ -130,6 +130,19 @@ def frames_to_video(frame_dir, output_file, fps, glob_pattern=None):
         print(f"  Error: ffmpeg failed:\n{result.stderr}", file=sys.stderr)
         return False
 
+    # Validate that the MP4 file was actually created with content.
+    # ffmpeg can exit 0 but produce a zero-byte file (e.g. codec/resolution
+    # incompatibility).  Returning False here prevents the caller from
+    # deleting the source frames, preserving them for debugging.
+    if not output_file.is_file() or output_file.stat().st_size == 0:
+        print(
+            f"  Error: ffmpeg produced empty or missing file: {output_file}",
+            file=sys.stderr,
+        )
+        if output_file.is_file():
+            output_file.unlink()
+        return False
+
     print(f"  Saved: {output_file}")
     return True
 
@@ -214,6 +227,7 @@ def render_dataset(args):
     # Combined pseudo-split: concatenate frames from all rendered splits
     if do_combined and len(render_splits) > 1 and not args.dry_run:
         combined_output_dir = base_output_dir / "combined"
+        combined_all_ok = True
         print("--- Combined ---")
 
         for output_name in args.rendered_output_names:
@@ -260,11 +274,21 @@ def render_dataset(args):
 
             if result.returncode != 0:
                 print(f"  Error: ffmpeg failed:\n{result.stderr}", file=sys.stderr)
+                combined_all_ok = False
+            elif not video_file.is_file() or video_file.stat().st_size == 0:
+                print(
+                    f"  Error: ffmpeg produced empty or missing file: {video_file}",
+                    file=sys.stderr,
+                )
+                if video_file.is_file():
+                    video_file.unlink()
+                combined_all_ok = False
             else:
                 print(f"  Saved: {video_file}")
 
-        # Clean up per-split frames now that combined videos are created
-        if not args.keep_frames:
+        # Clean up per-split frames only if ALL combined videos were created
+        # successfully.  If any failed, keep frames for debugging/re-encoding.
+        if not args.keep_frames and combined_all_ok:
             for split in render_splits:
                 for output_name in args.rendered_output_names:
                     frame_dir = base_output_dir / split / output_name

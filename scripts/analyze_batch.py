@@ -78,31 +78,50 @@ def pick_frames(total, num_frames):
 # Step 1: Find experiments
 # ---------------------------------------------------------------------------
 
-def find_experiments(outputs_dir, batch_prefix):
+def find_experiments(outputs_dir, batch_prefix, dataset=None):
     """Glob for experiments matching the batch prefix.
 
-    Looks for: <outputs_dir>/saltpond_unprocessed/saltpond_unprocessed-<batch_prefix>_*/sea-splatfacto/*/
+    Looks for: <outputs_dir>/<dataset_dir>/<dataset_dir>-<batch_prefix>_*/sea-splatfacto/*/
 
-    Returns list of (experiment_name, timestamp_dir) tuples, sorted by name.
+    When *dataset* is provided, only that dataset directory is searched,
+    avoiding cross-dataset contamination when multiple datasets share
+    the same batch prefix (e.g. ``tune02_*`` in both saltpond and curasao).
+
+    Returns list of (short_name, full_spec, timestamp_dir) tuples sorted
+    by short_name, where:
+        short_name  – display label, e.g. ``tune02_dwr2``
+        full_spec   – unambiguous relative path for sub-scripts,
+                      e.g. ``curasao_unprocessed/curasao_unprocessed-tune02_dwr2``
+        timestamp_dir – absolute Path to the latest timestamp directory
     """
     outputs_path = Path(outputs_dir)
-    # Search across all dataset directories, not just saltpond_unprocessed
     experiments = []
 
-    for dataset_dir in sorted(outputs_path.iterdir()):
-        if not dataset_dir.is_dir():
-            continue
+    if dataset:
+        # Only search the specified dataset directory
+        dataset_dirs = [outputs_path / dataset]
+        if not dataset_dirs[0].is_dir():
+            return experiments
+    else:
+        dataset_dirs = sorted(
+            d for d in outputs_path.iterdir() if d.is_dir()
+        )
 
+    for dataset_dir in dataset_dirs:
         pattern = f"{dataset_dir.name}-{batch_prefix}_*"
         for exp_dir in sorted(dataset_dir.glob(pattern)):
             if not exp_dir.is_dir():
                 continue
 
-            # Extract experiment name (strip dataset prefix)
+            # Extract short experiment name (strip dataset prefix)
             exp_name = exp_dir.name
             prefix = dataset_dir.name + "-"
             if exp_name.startswith(prefix):
                 exp_name = exp_name[len(prefix):]
+
+            # Build unambiguous spec: dataset/experiment (resolves via
+            # read_config.py's relative-path step without substring search)
+            full_spec = f"{dataset_dir.name}/{exp_dir.name}"
 
             # Find method dir and latest timestamp
             method_dir = exp_dir / "sea-splatfacto"
@@ -118,7 +137,7 @@ def find_experiments(outputs_dir, batch_prefix):
 
             # Use latest timestamp
             latest = timestamp_dirs[-1]
-            experiments.append((exp_name, latest))
+            experiments.append((exp_name, full_spec, latest))
 
     return experiments
 
@@ -168,8 +187,8 @@ def run_tb_analysis(experiments, outputs_dir):
     if not experiments:
         return "No experiments to compare."
 
-    exp_names = [name for name, _ in experiments]
-    args = ["compare"] + exp_names + ["--verbose", "--outputs-dir", str(outputs_dir)]
+    exp_specs = [spec for _, spec, _ in experiments]
+    args = ["compare"] + exp_specs + ["--verbose", "--outputs-dir", str(outputs_dir)]
     stdout, stderr, rc = run_script("read_tb.py", args)
 
     if rc != 0:
@@ -225,12 +244,12 @@ def generate_grids(experiments, frames, output_types, analysis_dir, outputs_dir,
     if not experiments or not frames:
         return []
 
-    exp_names = [name for name, _ in experiments]
+    exp_specs = [spec for _, spec, _ in experiments]
     grid_dir = Path(analysis_dir) / "grids"
 
     args = (
         ["grid"]
-        + exp_names
+        + exp_specs
         + ["--frames"] + [str(f) for f in frames]
         + ["--output-types"] + output_types
         + ["--output-dir", str(grid_dir)]
@@ -275,9 +294,9 @@ def extract_renders(experiments, frames, analysis_dir, outputs_dir, max_width):
     renders_dir = Path(analysis_dir) / "renders"
     extract_dirs = {}
 
-    for exp_name, _ in experiments:
+    for exp_name, exp_spec, _ in experiments:
         args = (
-            ["extract", exp_name]
+            ["extract", exp_spec]
             + ["--frames"] + [str(f) for f in frames]
             + ["--output-types", "rgb"]
             + ["--output-dir", str(renders_dir)]
@@ -452,6 +471,13 @@ def main():
         default=480,
         help="Max image width for renders (default: 480)",
     )
+    parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Dataset directory name to scope the search (e.g. curasao_unprocessed). "
+             "When omitted, all datasets are searched (may cause cross-dataset "
+             "contamination if the batch prefix is not unique).",
+    )
 
     args = parser.parse_args()
 
@@ -473,6 +499,7 @@ def main():
 
     report = {
         "batch_prefix": args.batch_prefix,
+        "dataset": args.dataset,
         "experiments": [],
         "analysis_dir": str(analysis_dir),
         "warnings": warnings,
@@ -490,8 +517,9 @@ def main():
     # -----------------------------------------------------------------------
     # Step 1: Find experiments
     # -----------------------------------------------------------------------
-    log(f"[1/9] Finding experiments matching '{args.batch_prefix}_*'...")
-    experiments = find_experiments(outputs_dir, args.batch_prefix)
+    log(f"[1/9] Finding experiments matching '{args.batch_prefix}_*'"
+        + (f" in {args.dataset}..." if args.dataset else "..."))
+    experiments = find_experiments(outputs_dir, args.batch_prefix, dataset=args.dataset)
 
     if not experiments:
         msg = f"No experiments found matching '{args.batch_prefix}_*' in {outputs_dir}"
@@ -504,7 +532,7 @@ def main():
         print(str(report_path))
         return
 
-    exp_names = [name for name, _ in experiments]
+    exp_names = [name for name, _, _ in experiments]
     report["experiments"] = exp_names
     log(f"  Found {len(experiments)} experiments: {', '.join(exp_names)}")
 
@@ -512,7 +540,7 @@ def main():
     # Step 2: Read metrics
     # -----------------------------------------------------------------------
     log("[2/9] Reading metrics.json for each experiment...")
-    for exp_name, ts_dir in experiments:
+    for exp_name, _, ts_dir in experiments:
         metrics = read_metrics(ts_dir)
         if metrics:
             report["metrics"][exp_name] = metrics
@@ -534,11 +562,12 @@ def main():
     # Step 4: Render info
     # -----------------------------------------------------------------------
     log("[4/9] Getting render frame count...")
-    total_frames = get_render_info(exp_names[0], outputs_dir)
+    exp_specs = [spec for _, spec, _ in experiments]
+    total_frames = get_render_info(exp_specs[0], outputs_dir)
     if total_frames == 0:
         log("  Warning: could not determine frame count, trying other experiments...")
-        for exp_name in exp_names[1:]:
-            total_frames = get_render_info(exp_name, outputs_dir)
+        for spec in exp_specs[1:]:
+            total_frames = get_render_info(spec, outputs_dir)
             if total_frames > 0:
                 break
 
