@@ -79,23 +79,19 @@ Each machine maintains its own `config/local_config.py` in its git checkout.
 
 ### Submit training + eval (sequential)
 
+**IMPORTANT**: Always use `--filter <dataset_name>` to scope jobs to the intended dataset. Without it, all jobs read from `local_config.py` at execution time — if the config changes between submission and execution (e.g., another campaign updates it), jobs will silently process the wrong dataset.
+
 ```bash
 cd ~/workspace/fyp/fyp-utils
 
-# Submit train + eval (eval depends on training success)
-./cluster/scripts/submit.sh
+# Submit train + eval + render (recommended: always use --filter and --render)
+./cluster/scripts/submit.sh --render --filter torpedo
 
-# Submit train + eval + render (render depends on eval success)
-./cluster/scripts/submit.sh --render
-
-# Training only
-./cluster/scripts/submit.sh --train-only
-
-# Filter specific datasets
+# Submit train + eval only
 ./cluster/scripts/submit.sh --filter torpedo
 
-# Full pipeline with filter
-./cluster/scripts/submit.sh --render --filter torpedo
+# Training only
+./cluster/scripts/submit.sh --train-only --filter torpedo
 
 # Check job status
 qstat -u $USER
