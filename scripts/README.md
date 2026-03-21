@@ -925,12 +925,14 @@ python scripts/analyze_batch.py tune10 --outputs-dir ../fyp-playground/outputs
 | `--num-frames <N>` | Number of representative frames to extract and analyze | `3` |
 | `--output-types <types...>` | Output types for comparison grids | `rgb underwater_rgb depth accumulation backscatter attenuation_map` |
 | `--max-width <pixels>` | Max image width for renders | `480` |
+| `--cleanup-tb` | Delete local tfevents files after TB data has been extracted | `false` |
 
 ### What it does (in order)
 
 1. **Find experiments**: Glob for `<batch_prefix>_*` in the outputs directory
 2. **Read metrics**: Load `metrics.json` (PSNR, SSIM, LPIPS, clean_psnr, etc.)
 3. **TB analysis**: Run `read_tb.py compare` across all experiments
+3b. **Cleanup TB** (if `--cleanup-tb`): Delete tfevents files now that metrics are in the report
 4. **Render info**: Get total frame count via `compare_renders.py info`
 5. **Pick frames**: Evenly space `--num-frames` frames across the render
 6. **Comparison grids**: Generate experiment x output type matrices via `compare_renders.py grid`

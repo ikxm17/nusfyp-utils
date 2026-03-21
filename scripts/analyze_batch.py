@@ -573,6 +573,13 @@ def main():
         help="Directory containing train.log, eval.log, render.log "
              "(default: <outputs-dir>/../logs)",
     )
+    parser.add_argument(
+        "--cleanup-tb",
+        action="store_true",
+        default=False,
+        help="Delete local tfevents files after TB data has been extracted. "
+             "Safe to use — the TB metrics are persisted to the JSON report.",
+    )
 
     args = parser.parse_args()
 
@@ -684,6 +691,24 @@ def main():
     # -----------------------------------------------------------------------
     log("[3/10] Running TensorBoard analysis...")
     report["tb_analysis"] = run_tb_analysis(experiments, outputs_dir)
+
+    # -----------------------------------------------------------------------
+    # Step 3b: Clean up TensorBoard files (optional)
+    # -----------------------------------------------------------------------
+    if args.cleanup_tb:
+        log("[3b/10] Cleaning up local tfevents files...")
+        deleted_count = 0
+        deleted_bytes = 0
+        for _, _, ts_dir in experiments:
+            for tf_file in ts_dir.glob("events.out.tfevents.*"):
+                deleted_bytes += tf_file.stat().st_size
+                tf_file.unlink()
+                deleted_count += 1
+        if deleted_count:
+            log(f"  Deleted {deleted_count} tfevents files, "
+                f"reclaimed {deleted_bytes / 1073741824:.2f} GB")
+        else:
+            log("  No tfevents files found to clean up")
 
     # -----------------------------------------------------------------------
     # Step 4: Render info
