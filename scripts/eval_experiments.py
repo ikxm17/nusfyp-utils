@@ -245,6 +245,11 @@ def main():
         help="Only evaluate experiments whose name contains this substring (config mode only)",
     )
     parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Only evaluate experiments for this dataset (matches dataset prefix in name)",
+    )
+    parser.add_argument(
         "--output-name",
         default="metrics.json",
         help="Metrics JSON filename (default: metrics.json)",
@@ -285,6 +290,8 @@ def main():
     else:
         config = load_config(args.config)
         experiments = config.EXPERIMENTS
+        if args.dataset:
+            experiments = [e for e in experiments if e["name"].startswith(args.dataset + "/")]
         if args.filter:
             experiments = [e for e in experiments if args.filter in e["name"]]
         if not experiments:

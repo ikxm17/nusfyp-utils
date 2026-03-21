@@ -256,6 +256,11 @@ def main():
         default=None,
         help="Only render experiments whose name contains this substring (config mode only)",
     )
+    parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Only render experiments for this dataset (matches dataset prefix in name)",
+    )
 
     # Camera path options
     cp_group = parser.add_argument_group("camera path options")
@@ -350,6 +355,8 @@ def main():
     else:
         config = load_config(args.config)
         experiments = config.EXPERIMENTS
+        if args.dataset:
+            experiments = [e for e in experiments if e["name"].startswith(args.dataset + "/")]
         if args.filter:
             experiments = [e for e in experiments if args.filter in e["name"]]
         if not experiments:
