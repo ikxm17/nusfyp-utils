@@ -6,12 +6,21 @@
 #   ./cluster/scripts/submit.sh --render               # Submit train + eval + render
 #   ./cluster/scripts/submit.sh --train-only           # Submit training only
 #   ./cluster/scripts/submit.sh --parallel             # Submit as PBS array job (1 experiment per sub-job)
-#   ./cluster/scripts/submit.sh --filter torpedo       # Pass extra args to all jobs
+#   ./cluster/scripts/submit.sh --filter torpedo       # Only experiments whose name contains "torpedo"
+#   ./cluster/scripts/submit.sh --dataset redsea_unprocessed  # Only experiments for this dataset
 #   ./cluster/scripts/submit.sh --paid                 # Use paid queue (consumes GPU-hour allocation)
 #   ./cluster/scripts/submit.sh --paid --walltime 2:00:00  # Paid queue + custom walltime
 #
 # Run from the fyp-utils/ directory.
 set -euo pipefail
+
+# Fallback TMPDIR to scratch if /tmp is on a full root partition.
+# PBS qsub needs temp space to copy the job script before submission.
+if [ -z "${TMPDIR:-}" ] || ! dd if=/dev/zero of="${TMPDIR:-/tmp}/.submit_probe" bs=1 count=1 2>/dev/null; then
+    export TMPDIR="/scratch/${USER}/tmp"
+    mkdir -p "$TMPDIR"
+fi
+rm -f "${TMPDIR}/.submit_probe" 2>/dev/null
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JOBS_DIR="$SCRIPT_DIR/../jobs"

@@ -26,9 +26,11 @@ $HOME/workspace/fyp/
 ├── sea-splatfacto/                # Bind-mounted into container
 ├── nerfstudio/                    # Bind-mounted into container
 └── containers/
-    └── nerfstudio.sif             # Built container image
+    └── nerfstudio.sif -> /scratch/$USER/fyp-playground/containers/nerfstudio.sif
 
 /scratch/$USER/fyp-playground/
+├── containers/
+│   └── nerfstudio.sif             # Actual container image (~8.4 GB)
 ├── datasets/                      # Training data
 ├── outputs/                       # Training outputs
 └── logs/                          # Job + training logs
@@ -79,19 +81,19 @@ Each machine maintains its own `config/local_config.py` in its git checkout.
 
 ### Submit training + eval (sequential)
 
-**IMPORTANT**: Always use `--filter <dataset_name>` to scope jobs to the intended dataset. Without it, all jobs read from `local_config.py` at execution time — if the config changes between submission and execution (e.g., another campaign updates it), jobs will silently process the wrong dataset.
+**IMPORTANT**: Always use `--dataset` to scope jobs to the intended dataset. Without it, experiments run across ALL datasets in `local_config.py`. Use `--filter` to further narrow by experiment name within that dataset.
 
 ```bash
 cd ~/workspace/fyp/fyp-utils
 
-# Submit train + eval + render (recommended: always use --filter and --render)
-./cluster/scripts/submit.sh --render --filter torpedo
+# Submit for a specific dataset (recommended: always use --dataset and --render)
+./cluster/scripts/submit.sh --render --dataset redsea_unprocessed
 
-# Submit train + eval only
-./cluster/scripts/submit.sh --filter torpedo
+# Dataset + filter to run a single experiment
+./cluster/scripts/submit.sh --render --dataset redsea_unprocessed --filter tune00_dcp_low_st10k
 
 # Training only
-./cluster/scripts/submit.sh --train-only --filter torpedo
+./cluster/scripts/submit.sh --train-only --dataset redsea_unprocessed
 
 # Check job status
 qstat -u $USER
@@ -179,6 +181,20 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per node, max 4 concurrent jobs.
 
 > **Tip:** Training defaults to `auto_free` (no GPU-hour charge). Use `--paid --walltime <HH:MM:SS>` for production runs after profiling actual runtime.
+
+## Troubleshooting
+
+### `qsub: copy of script to tmp failed on close: No space left on device`
+
+The management node's root filesystem (`/dev/sda3`) is full. `qsub` can't write temp files to `/tmp`. `submit.sh` automatically falls back to `TMPDIR=/scratch/$USER/tmp` when this happens. If submitting directly via `qsub`, set it manually:
+
+```bash
+TMPDIR=/scratch/$USER/tmp mkdir -p /scratch/$USER/tmp && TMPDIR=/scratch/$USER/tmp qsub ...
+```
+
+### Container image location
+
+The container image (`nerfstudio.sif`, ~8.4 GB) lives on scratch to avoid consuming home directory quota on the root partition. A symlink at `$HOME/workspace/fyp/containers/nerfstudio.sif` points to `/scratch/$USER/fyp-playground/containers/nerfstudio.sif`. PBS scripts resolve the symlink transparently.
 
 ## Dependencies
 

@@ -193,6 +193,11 @@ def main():
         help="Only run experiments whose name contains this substring",
     )
     parser.add_argument(
+        "--dataset",
+        default=None,
+        help="Only run experiments for this dataset (matches dataset prefix in name)",
+    )
+    parser.add_argument(
         "--log-index",
         action="store_true",
         help="Prefix expt_{index}_ to log filenames",
@@ -215,6 +220,8 @@ def main():
     experiments = config.EXPERIMENTS
     log_dir = config.LOG_DIR
 
+    if args.dataset:
+        experiments = [e for e in experiments if e["name"].startswith(args.dataset + "/")]
     if args.filter:
         experiments = [e for e in experiments if args.filter in e["name"]]
 
