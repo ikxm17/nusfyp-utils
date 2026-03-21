@@ -287,15 +287,6 @@ def main():
         experiments = config.EXPERIMENTS
         if args.filter:
             experiments = [e for e in experiments if args.filter in e["name"]]
-        elif hasattr(config, "DATASETS") and len(config.DATASETS) > 1:
-            dataset_names = ", ".join(config.DATASETS.keys())
-            print(
-                f"ERROR: --filter is required when config contains multiple datasets.\n"
-                f"Available datasets: {dataset_names}\n"
-                f"Use: --filter <dataset_name>",
-                file=sys.stderr,
-            )
-            sys.exit(1)
         if not experiments:
             print("No experiments match the filter.", file=sys.stderr)
             sys.exit(1)

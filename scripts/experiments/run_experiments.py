@@ -218,18 +218,6 @@ def main():
     if args.filter:
         experiments = [e for e in experiments if args.filter in e["name"]]
 
-    # Safety check: require --filter when config has multiple datasets to prevent
-    # accidentally running all datasets (e.g., Panama Batch 2 incident).
-    if not args.filter and hasattr(config, "DATASETS") and len(config.DATASETS) > 1:
-        dataset_names = ", ".join(config.DATASETS.keys())
-        print(
-            f"ERROR: --filter is required when config contains multiple datasets.\n"
-            f"Available datasets: {dataset_names}\n"
-            f"Use: --filter <dataset_name>",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     if args.count:
         print(len(experiments))
         return
