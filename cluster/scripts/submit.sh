@@ -20,6 +20,7 @@ TRAIN_ONLY=false
 PARALLEL=false
 RENDER=false
 PAID=false
+FILTER=""
 EXTRA_ARGS=""
 QSUB_OPTS=""
 
@@ -45,12 +46,23 @@ while [[ $# -gt 0 ]]; do
             QSUB_OPTS="$QSUB_OPTS -l walltime=$2"
             shift 2
             ;;
+        --filter)
+            FILTER="$2"
+            shift 2
+            ;;
         *)
             EXTRA_ARGS="$EXTRA_ARGS $1"
             shift
             ;;
     esac
 done
+
+# Warn if no --filter specified (run_experiments.py will enforce the hard check)
+if [ -z "$FILTER" ]; then
+    echo "WARNING: No --filter specified. All datasets in config will be processed."
+else
+    EXTRA_ARGS="$EXTRA_ARGS --filter $FILTER"
+fi
 
 # Default to free tier queue unless --paid is specified
 if [ "$PAID" = true ]; then
