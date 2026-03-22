@@ -124,18 +124,18 @@ fi
 
 # Submit eval job — runs only after training succeeds
 if [ -n "$EXTRA_ARGS" ]; then
-    EVAL_JOB=$(qsub -W depend=afterok:"$TRAIN_JOB" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/eval.pbs")
+    EVAL_JOB=$(qsub $QSUB_OPTS -W depend=afterok:"$TRAIN_JOB" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/eval.pbs")
 else
-    EVAL_JOB=$(qsub -W depend=afterok:"$TRAIN_JOB" "$JOBS_DIR/eval.pbs")
+    EVAL_JOB=$(qsub $QSUB_OPTS -W depend=afterok:"$TRAIN_JOB" "$JOBS_DIR/eval.pbs")
 fi
 echo "Eval job submitted: $EVAL_JOB (depends on $TRAIN_JOB)"
 
 if [ "$RENDER" = true ]; then
     # Submit render job — runs only after eval succeeds
     if [ -n "$EXTRA_ARGS" ]; then
-        RENDER_JOB=$(qsub -W depend=afterok:"$EVAL_JOB" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/render.pbs")
+        RENDER_JOB=$(qsub $QSUB_OPTS -W depend=afterok:"$EVAL_JOB" -v EXTRA_ARGS="$EXTRA_ARGS" "$JOBS_DIR/render.pbs")
     else
-        RENDER_JOB=$(qsub -W depend=afterok:"$EVAL_JOB" "$JOBS_DIR/render.pbs")
+        RENDER_JOB=$(qsub $QSUB_OPTS -W depend=afterok:"$EVAL_JOB" "$JOBS_DIR/render.pbs")
     fi
     echo "Render job submitted: $RENDER_JOB (depends on $EVAL_JOB)"
 fi
