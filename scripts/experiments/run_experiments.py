@@ -249,13 +249,14 @@ def main():
             sys.exit(1)
         experiments = [experiments[args.index]]
 
-    # Validate extra_args flags
+    # Validate extra_args flags — fail fast on unrecognized options
     warnings = validate_extra_args(experiments)
     if warnings:
-        print("\nFlag validation:")
+        print("\nFlag validation FAILED:", file=sys.stderr)
         for w in warnings:
-            print(f"  {w}")
-        print()
+            print(f"  {w}", file=sys.stderr)
+        print(file=sys.stderr)
+        sys.exit(1)
 
     print(f"Running {len(experiments)} experiments {'(dry run)' if args.dry_run else ''}\n")
 
