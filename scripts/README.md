@@ -271,7 +271,7 @@ Renders nerfstudio experiments to video in one command. Wraps `ns-render` with a
 python scripts/render.py dataset a_exploration --outputs-dir ../fyp-playground/outputs
 
 # Render only the test split with rgb and depth outputs
-python scripts/render.py dataset <experiment> --split test --rendered-output-names rgb depth
+python scripts/render.py dataset <experiment> --split test --rendered-output-names clean_rgb depth
 
 # Render a camera path trajectory
 python scripts/render.py camera-path <experiment> --camera-path /path/to/trajectory.json
@@ -293,7 +293,7 @@ python scripts/render.py camera-path <experiment> --camera-path traj.json --dry-
 | `experiment` (positional) | Path/spec to experiment (resolved via `read_config.py`) | required |
 | `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
 | `--output-dir <path>` | Override output directory | `<experiment>/renders/<subcommand>/` |
-| `--rendered-output-names <names...>` | Output names to render | `rgb` |
+| `--rendered-output-names <names...>` | Output names to render | `clean_rgb` |
 | `--fps <n>` | Video frame rate | `30` |
 | `--keep-frames` | Preserve frame images after video creation | off |
 | `--image-format {jpeg,png}` | Image format for frames | `jpeg` |
@@ -320,13 +320,13 @@ python scripts/render.py camera-path <experiment> --camera-path traj.json --dry-
 <timestamp>/renders/
 ├── dataset/
 │   ├── test/
-│   │   ├── rgb.mp4
+│   │   ├── clean_rgb.mp4
 │   │   └── depth.mp4
 │   └── train/
-│       └── rgb.mp4
+│       └── clean_rgb.mp4
 └── camera-path/
     └── {path-name}/
-        ├── rgb.mp4
+        ├── clean_rgb.mp4
         └── depth.mp4
 ```
 
@@ -381,7 +381,7 @@ python scripts/render_experiments.py a_exploration --render-type all --outputs-d
 python scripts/render_experiments.py a_exploration --skip-existing --outputs-dir ../fyp-playground/outputs
 
 # Render with depth output and downscaled resolution
-python scripts/render_experiments.py a_exploration --rendered-output-names rgb depth --downscale-factor 2 \
+python scripts/render_experiments.py a_exploration --rendered-output-names clean_rgb depth --downscale-factor 2 \
   --outputs-dir ../fyp-playground/outputs
 ```
 
@@ -396,7 +396,7 @@ python scripts/render_experiments.py a_exploration --rendered-output-names rgb d
 | `--filter <substring>` | Filter experiments (config mode only) | none |
 | `--camera-path <file>` | Explicit camera path JSON (used for all runs) | none |
 | `--camera-paths-dir <dir>` | Directory of camera path JSONs (all rendered per run) | none |
-| `--rendered-output-names <names...>` | Output names to render | `rgb` |
+| `--rendered-output-names <names...>` | Output names to render | `clean_rgb` |
 | `--split <splits>` | Dataset splits, `+`-separated | `train+test` |
 | `--fps <n>` | Video frame rate | `30` |
 | `--keep-frames` | Preserve frame images after video creation | off |
@@ -450,15 +450,15 @@ python scripts/compare_renders.py info seathru8k --outputs-dir ../fyp-playground
 
 # Extract specific frames as PNGs
 python scripts/compare_renders.py extract seathru8k --outputs-dir ../fyp-playground/outputs \
-  --frames 0 12 --output-types rgb underwater_rgb
+  --frames 0 12 --output-types clean_rgb medium_rgb
 
 # Cross-experiment comparison strips (vertical stacking)
 python scripts/compare_renders.py compare seathru8k baseline seathru5k \
-  --outputs-dir ../fyp-playground/outputs --frames 0 12 --output-types rgb underwater_rgb
+  --outputs-dir ../fyp-playground/outputs --frames 0 12 --output-types clean_rgb medium_rgb
 
 # Full matrix: experiments (rows) x output types (columns)
 python scripts/compare_renders.py grid seathru8k baseline \
-  --outputs-dir ../fyp-playground/outputs --frames 0 --output-types rgb underwater_rgb depth
+  --outputs-dir ../fyp-playground/outputs --frames 0 --output-types clean_rgb medium_rgb depth
 
 # Camera-path renders instead of dataset
 python scripts/compare_renders.py info seathru8k --render-type camera-path --camera-path-name 1
@@ -475,7 +475,7 @@ python scripts/compare_renders.py info seathru8k --render-type camera-path --cam
 | `--split <split>` | Dataset split | `test` |
 | `--render-type {dataset,camera-path}` | Render type | `dataset` |
 | `--camera-path-name <name>` | Camera path name (camera-path mode) | `1` |
-| `--output-types <types...>` | Output types to process | `rgb underwater_rgb` |
+| `--output-types <types...>` | Output types to process | `clean_rgb medium_rgb` |
 | `--output-dir <path>` | Where to save results | `./comparisons` |
 | `--max-width <pixels>` | Max image width before downscaling | no limit |
 
@@ -957,7 +957,7 @@ python scripts/decompose_metrics.py <experiment_spec> --device cpu --outputs-dir
 1. Resolve experiment run directory and load `config.yml`
 2. Determine test split indices from dataparser config (fraction/interval mode)
 3. Load GT images from the dataset directory (respects downscale factor)
-4. Extract rendered frames from `renders/dataset/test/underwater_rgb.mp4`
+4. Extract rendered frames from `renders/dataset/test/medium_rgb.mp4`
 5. Compute per-frame SSIM components (luminance, contrast, structure) and LPIPS per-layer distances
 6. Aggregate and output results
 
@@ -992,7 +992,7 @@ python scripts/agents/analyze_batch.py tune10 \
     --analysis-dir /tmp/batch-analysis \
     --dataset-analysis ../fyp-playground/datasets/saltpond/analysis.md \
     --num-frames 3 \
-    --output-types rgb underwater_rgb depth \
+    --output-types clean_rgb medium_rgb depth \
     --max-width 480
 
 # Minimal (just metrics + TB, skip visual analysis)
@@ -1001,7 +1001,7 @@ python scripts/agents/analyze_batch.py tune10 \
     --analysis-dir /tmp/batch-analysis \
     --num-frames 0
 
-# Default output types (rgb, underwater_rgb, depth, accumulation, backscatter, attenuation_map)
+# Default output types (clean_rgb, medium_rgb, depth, accumulation, backscatter, attenuation_map)
 python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/outputs
 ```
 
@@ -1014,7 +1014,7 @@ python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/ou
 | `--analysis-dir <path>` | Directory for analysis artifacts (grids, renders, report) | `/tmp/batch-analysis` |
 | `--dataset-analysis <path>` | Path to dataset `analysis.md` for input color metrics comparison | none |
 | `--num-frames <N>` | Number of representative frames to extract and analyze | `3` |
-| `--output-types <types...>` | Output types for comparison grids | `rgb underwater_rgb depth accumulation backscatter attenuation_map` |
+| `--output-types <types...>` | Output types for comparison grids | `clean_rgb medium_rgb depth accumulation backscatter attenuation_map` |
 | `--max-width <pixels>` | Max image width for renders | `480` |
 | `--cleanup-tb` | Delete local tfevents files after TB data has been extracted | `false` |
 
@@ -1027,7 +1027,7 @@ python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/ou
 4. **Render info**: Get total frame count via `compare_renders.py info`
 5. **Pick frames**: Evenly space `--num-frames` frames across the render
 6. **Comparison grids**: Generate experiment x output type matrices via `compare_renders.py grid`
-7. **Extract renders**: Pull rgb frames for each experiment via `compare_renders.py extract`
+7. **Extract renders**: Pull render frames for each experiment via `compare_renders.py extract`
 8. **Color analysis**: Run `dataset_underwater.py --json` on extracted renders
 9. **Dataset input metrics**: Parse `analysis.md` for input color cast baselines
 
@@ -1047,7 +1047,7 @@ Also generates artifacts in `--analysis-dir`:
 <analysis-dir>/
 ├── report.json
 ├── grids/grid/grid_frame{NNN}.png
-└── renders/extract/{experiment}/rgb_frame{NNN}.png
+└── renders/extract/{experiment}/clean_rgb_frame{NNN}.png
 ```
 
 Prints progress to stderr and the report path to stdout (last line).

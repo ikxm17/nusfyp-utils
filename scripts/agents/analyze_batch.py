@@ -8,7 +8,7 @@ Usage:
         --analysis-dir /tmp/batch-analysis \
         --dataset-analysis ../fyp-playground/datasets/saltpond/saltpond_unprocessed/analysis.md \
         --num-frames 3 \
-        --output-types rgb underwater_rgb depth \
+        --output-types clean_rgb medium_rgb depth \
         --max-width 480
 
 Steps:
@@ -20,8 +20,9 @@ Steps:
     6. Generate comparison grids (compare_renders.py grid)
     7. Extract clean renders (compare_renders.py extract)
     8. Run dataset_underwater.py on extracted rgb renders
-    9. Parse dataset input analysis (if provided)
-    10. Write structured JSON report
+    9. Run decompose_metrics.py for SSIM/LPIPS decomposition (optional, requires torch)
+    10. Parse dataset input analysis (if provided)
+    11. Write structured JSON report
 """
 
 import argparse
@@ -395,7 +396,7 @@ def extract_renders(experiments, frames, analysis_dir, outputs_dir, max_width):
         args = (
             ["extract", exp_spec]
             + ["--frames"] + [str(f) for f in frames]
-            + ["--output-types", "rgb"]
+            + ["--output-types", "clean_rgb"]
             + ["--output-dir", str(renders_dir)]
             + ["--outputs-dir", str(outputs_dir)]
         )
@@ -464,7 +465,74 @@ def run_color_analysis(extract_dirs):
 
 
 # ---------------------------------------------------------------------------
-# Step 9: Parse dataset input analysis
+# Step 9: Decomposed metrics (SSIM components + LPIPS per-layer)
+# ---------------------------------------------------------------------------
+
+def run_decomposed_metrics(experiments, outputs_dir, dataset_dir=None):
+    """Run decompose_metrics.py on each experiment for SSIM/LPIPS decomposition.
+
+    This step is optional — decompose_metrics.py requires torch and LPIPS
+    dependencies which may not be available in the local environment.
+
+    Returns dict mapping experiment name to decomposed metrics, or a string
+    error message if the script cannot run at all.
+    """
+    # Quick check: can we import torch? If not, skip entirely.
+    try:
+        import importlib
+        importlib.import_module("torch")
+    except ImportError:
+        return "skipped: torch not available in local environment"
+
+    decomposed = {}
+    exp_specs = [spec for _, spec, _ in experiments]
+
+    # Build args: all specs at once, --json, --device cpu (local, no GPU)
+    args = exp_specs + [
+        "--json",
+        "--device", "cpu",
+        "--outputs-dir", str(outputs_dir),
+    ]
+    if dataset_dir:
+        args += ["--dataset-dir", str(dataset_dir)]
+
+    stdout, stderr, rc = run_script("decompose_metrics.py", args)
+
+    if rc != 0:
+        msg = f"decompose_metrics.py failed (exit {rc})"
+        if stderr:
+            # Extract last few lines of stderr for useful error info
+            stderr_lines = stderr.strip().splitlines()
+            msg += f": {stderr_lines[-1]}" if stderr_lines else ""
+        return msg
+
+    if not stdout.strip():
+        return "decompose_metrics.py returned no output"
+
+    try:
+        data = json.loads(stdout)
+        results = data.get("experiments", {})
+
+        for label, exp_data in results.items():
+            agg = exp_data.get("aggregate", {})
+            decomposed[label] = {
+                "ssim": agg.get("ssim"),
+                "ssim_luminance": agg.get("ssim_luminance"),
+                "ssim_contrast": agg.get("ssim_contrast"),
+                "ssim_structure": agg.get("ssim_structure"),
+                "lpips": agg.get("lpips"),
+                "lpips_layers": agg.get("lpips_layers", []),
+                "num_frames": exp_data.get("num_frames", 0),
+            }
+
+    except (json.JSONDecodeError, KeyError) as e:
+        return f"decompose_metrics.py returned invalid JSON: {e}"
+
+    return decomposed
+
+
+# ---------------------------------------------------------------------------
+# Step 10: Parse dataset input analysis
 # ---------------------------------------------------------------------------
 
 def parse_dataset_analysis(analysis_path):
@@ -557,9 +625,9 @@ def main():
     parser.add_argument(
         "--output-types",
         nargs="+",
-        default=["rgb", "underwater_rgb", "depth", "accumulation", "backscatter",
+        default=["clean_rgb", "medium_rgb", "depth", "accumulation", "backscatter",
                  "attenuation_map"],
-        help="Output types for comparison grids (default: rgb underwater_rgb depth "
+        help="Output types for comparison grids (default: clean_rgb medium_rgb depth "
              "accumulation backscatter attenuation_map)",
     )
     parser.add_argument(
@@ -620,6 +688,7 @@ def main():
         },
         "grid_images": [],
         "color_analysis": {},
+        "decomposed_metrics": None,
         "timing": {},
         "dataset_input_metrics": None,
     }
@@ -627,7 +696,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 1: Find experiments
     # -----------------------------------------------------------------------
-    log(f"[1/10] Finding experiments matching '{args.batch_prefix}_*'"
+    log(f"[1/11] Finding experiments matching '{args.batch_prefix}_*'"
         + (f" in {args.dataset}..." if args.dataset else "..."))
     experiments = find_experiments(outputs_dir, args.batch_prefix, dataset=args.dataset)
 
@@ -649,7 +718,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 2: Read metrics
     # -----------------------------------------------------------------------
-    log("[2/10] Reading metrics.json for each experiment...")
+    log("[2/11] Reading metrics.json for each experiment...")
     for exp_name, _, ts_dir in experiments:
         metrics = read_metrics(ts_dir)
         if metrics:
@@ -667,7 +736,7 @@ def main():
     # -----------------------------------------------------------------------
     logs_dir = args.logs_dir or str(outputs_dir.parent / "logs")
     if args.dataset:
-        log(f"[2b/10] Extracting timing from logs ({logs_dir})...")
+        log(f"[2b/11] Extracting timing from logs ({logs_dir})...")
         timing = extract_timing(experiments, logs_dir, args.dataset)
         report["timing"] = timing
         if timing:
@@ -691,19 +760,19 @@ def main():
         else:
             log("  No timing data found in logs")
     else:
-        log("[2b/10] Skipping timing — --dataset required to match train.log entries")
+        log("[2b/11] Skipping timing — --dataset required to match train.log entries")
 
     # -----------------------------------------------------------------------
     # Step 3: TB analysis
     # -----------------------------------------------------------------------
-    log("[3/10] Running TensorBoard analysis...")
+    log("[3/11] Running TensorBoard analysis...")
     report["tb_analysis"] = run_tb_analysis(experiments, outputs_dir)
 
     # -----------------------------------------------------------------------
     # Step 3b: Clean up TensorBoard files (optional)
     # -----------------------------------------------------------------------
     if args.cleanup_tb:
-        log("[3b/10] Cleaning up local tfevents files...")
+        log("[3b/11] Cleaning up local tfevents files...")
         deleted_count = 0
         deleted_bytes = 0
         for _, _, ts_dir in experiments:
@@ -720,7 +789,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 4: Render info
     # -----------------------------------------------------------------------
-    log("[4/10] Getting render frame count...")
+    log("[4/11] Getting render frame count...")
     exp_specs = [spec for _, spec, _ in experiments]
     total_frames = get_render_info(exp_specs[0], outputs_dir)
     if total_frames == 0:
@@ -740,7 +809,7 @@ def main():
     # -----------------------------------------------------------------------
     # Step 5: Pick representative frames
     # -----------------------------------------------------------------------
-    log("[5/10] Selecting representative frames...")
+    log("[5/11] Selecting representative frames...")
     selected_frames = pick_frames(total_frames, args.num_frames)
     report["render_info"]["selected_frames"] = selected_frames
     log(f"  Selected frames: {selected_frames}")
@@ -749,7 +818,7 @@ def main():
     # Step 6: Generate comparison grids
     # -----------------------------------------------------------------------
     if selected_frames:
-        log("[6/10] Generating comparison grids...")
+        log("[6/11] Generating comparison grids...")
         grid_images = generate_grids(
             experiments, selected_frames, args.output_types,
             analysis_dir, outputs_dir, args.max_width,
@@ -757,36 +826,69 @@ def main():
         report["grid_images"] = grid_images
         log(f"  Generated {len(grid_images)} grid images")
     else:
-        log("[6/10] Skipping grids — no frames available")
+        log("[6/11] Skipping grids — no frames available")
 
     # -----------------------------------------------------------------------
     # Step 7: Extract clean renders
     # -----------------------------------------------------------------------
     if selected_frames:
-        log("[7/10] Extracting clean renders (rgb)...")
+        log("[7/11] Extracting clean renders (rgb)...")
         extract_dirs = extract_renders(
             experiments, selected_frames, analysis_dir, outputs_dir,
             args.max_width,
         )
         log(f"  Extracted renders for {len(extract_dirs)} experiments")
     else:
-        log("[7/10] Skipping render extraction — no frames available")
+        log("[7/11] Skipping render extraction — no frames available")
         extract_dirs = {}
 
     # -----------------------------------------------------------------------
     # Step 8: Color analysis
     # -----------------------------------------------------------------------
     if extract_dirs:
-        log("[8/10] Running color analysis on extracted renders...")
+        log("[8/11] Running color analysis on extracted renders...")
         report["color_analysis"] = run_color_analysis(extract_dirs)
         log(f"  Color analysis complete for {len(report['color_analysis'])} experiments")
     else:
-        log("[8/10] Skipping color analysis — no extracted renders")
+        log("[8/11] Skipping color analysis — no extracted renders")
 
     # -----------------------------------------------------------------------
-    # Step 9: Parse dataset input analysis
+    # Step 9: Decomposed metrics (optional)
     # -----------------------------------------------------------------------
-    log("[9/10] Parsing dataset input analysis...")
+    log("[9/11] Running decomposed metrics (SSIM components + LPIPS per-layer)...")
+
+    # Resolve dataset dir for decompose_metrics.py (config.yml may have remote paths)
+    dataset_dir_for_decompose = None
+    if args.dataset:
+        # Try to find the dataset directory under the outputs parent
+        candidate = outputs_dir.parent / "datasets"
+        # Look for a matching dataset directory
+        for d in sorted(candidate.iterdir()) if candidate.is_dir() else []:
+            sub = d / args.dataset
+            if sub.is_dir():
+                dataset_dir_for_decompose = str(sub)
+                break
+
+    decomposed_result = run_decomposed_metrics(
+        experiments, outputs_dir, dataset_dir=dataset_dir_for_decompose,
+    )
+    if isinstance(decomposed_result, str):
+        # Error or skip message
+        log(f"  {decomposed_result}")
+        report["decomposed_metrics"] = decomposed_result
+        if "skipped" not in decomposed_result:
+            warnings.append({
+                "step": "decomposed_metrics",
+                "message": decomposed_result,
+            })
+    else:
+        report["decomposed_metrics"] = decomposed_result
+        log(f"  Decomposed metrics computed for {len(decomposed_result)} experiments")
+
+    # -----------------------------------------------------------------------
+    # Step 10: Parse dataset input analysis
+    # -----------------------------------------------------------------------
+    log("[10/11] Parsing dataset input analysis...")
     report["dataset_input_metrics"] = parse_dataset_analysis(args.dataset_analysis)
     if report["dataset_input_metrics"]:
         log(f"  Parsed {len(report['dataset_input_metrics'])} input metrics")

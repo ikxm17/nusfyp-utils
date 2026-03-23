@@ -351,15 +351,15 @@ def process_experiment(run_dir, outputs_dir, dataset_dir_override, device,
     render_dir = timestamp_dir / "renders" / "dataset"
     # Try "test" first, then "val"
     for split_name in ("test", "val"):
-        video_path = render_dir / split_name / "underwater_rgb.mp4"
+        video_path = render_dir / split_name / "medium_rgb.mp4"
         if video_path.is_file():
             break
     else:
-        print(f"  Error: no underwater_rgb.mp4 in {render_dir}/test/ or val/",
+        print(f"  Error: no medium_rgb.mp4 in {render_dir}/test/ or val/",
               file=sys.stderr)
         return label, None
 
-    print(f"  Loading renders from {split_name}/underwater_rgb.mp4...", file=sys.stderr)
+    print(f"  Loading renders from {split_name}/medium_rgb.mp4...", file=sys.stderr)
     rendered_frames = load_video_frames(video_path)
 
     if not rendered_frames:

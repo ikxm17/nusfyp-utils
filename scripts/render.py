@@ -411,8 +411,8 @@ def main():
     shared.add_argument(
         "--rendered-output-names",
         nargs="+",
-        default=["rgb"],
-        help="Output names to render (default: rgb)",
+        default=["clean_rgb"],
+        help="Output names to render (default: clean_rgb)",
     )
     shared.add_argument(
         "--fps",

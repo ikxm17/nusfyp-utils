@@ -64,7 +64,7 @@ Two example templates are provided:
 | `NUMBER_OF_REPEATS` | `1` |
 | `VIS` | `"viewer+tensorboard"` |
 | `VIEWER` | `False` |
-| `RENDER_OUTPUT_NAMES` | `["rgb"]` |
+| `RENDER_OUTPUT_NAMES` | `["clean_rgb"]` |
 | `RENDER_TYPE` | `"dataset"` |
 | `RENDER_SPLIT` | `"train+test"` |
 

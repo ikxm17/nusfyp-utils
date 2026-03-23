@@ -457,8 +457,8 @@ def main():
     shared.add_argument(
         "--output-types",
         nargs="+",
-        default=["rgb", "underwater_rgb"],
-        help="Output types to process (default: rgb underwater_rgb)",
+        default=["clean_rgb", "medium_rgb"],
+        help="Output types to process (default: clean_rgb medium_rgb)",
     )
     shared.add_argument(
         "--output-dir",

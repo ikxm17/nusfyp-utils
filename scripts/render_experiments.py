@@ -283,7 +283,7 @@ def main():
         "--rendered-output-names",
         nargs="+",
         default=None,
-        help="Output names to render (default: rgb)",
+        help="Output names to render (default: clean_rgb)",
     )
     render_group.add_argument(
         "--split",
@@ -349,7 +349,7 @@ def main():
         if args.render_type is None:
             args.render_type = "dataset"
         if args.rendered_output_names is None:
-            args.rendered_output_names = ["rgb"]
+            args.rendered_output_names = ["clean_rgb"]
         if args.split is None:
             args.split = "train+test"
     else:
@@ -368,7 +368,7 @@ def main():
         if args.render_type is None:
             args.render_type = getattr(config, "RENDER_TYPE", "dataset")
         if args.rendered_output_names is None:
-            args.rendered_output_names = getattr(config, "RENDER_OUTPUT_NAMES", ["rgb"])
+            args.rendered_output_names = getattr(config, "RENDER_OUTPUT_NAMES", ["clean_rgb"])
         if args.split is None:
             args.split = getattr(config, "RENDER_SPLIT", "train+test")
 

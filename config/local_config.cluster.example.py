@@ -24,10 +24,10 @@ VIEWER = False
 
 # Render settings — all sea-splatfacto outputs
 RENDER_OUTPUT_NAMES = [
-    "rgb",
+    "clean_rgb",
     "depth",
     "accumulation",
-    "underwater_rgb",
+    "medium_rgb",
     "direct",
     "backscatter",
     "attenuation_map",
