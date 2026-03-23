@@ -26,6 +26,15 @@ from read_config import resolve_config_path, resolve_outputs_dir
 
 
 # ---------------------------------------------------------------------------
+# Display constants
+# ---------------------------------------------------------------------------
+
+_LABEL_COL_WIDTH = 200
+_LABEL_BAR_HEIGHT = 32
+_LABEL_FONT_SIZE = 20
+
+
+# ---------------------------------------------------------------------------
 # Path resolution
 # ---------------------------------------------------------------------------
 
@@ -123,7 +132,7 @@ def extract_frames(video_path, frame_indices):
 # ---------------------------------------------------------------------------
 
 
-def add_label(image, text, bar_height=32, font_size=20):
+def add_label(image, text, bar_height=_LABEL_BAR_HEIGHT, font_size=_LABEL_FONT_SIZE):
     """Add a text label bar above the image. Returns new image."""
     w, h = image.size
     labeled = Image.new("RGB", (w, h + bar_height), (30, 30, 30))
@@ -178,7 +187,7 @@ def compose_strip(images, labels, direction="vertical"):
     return result
 
 
-def compose_grid(images_2d, row_labels, col_labels, bar_height=32, font_size=20):
+def compose_grid(images_2d, row_labels, col_labels, bar_height=_LABEL_BAR_HEIGHT, font_size=_LABEL_FONT_SIZE):
     """Build experiment (rows) x output_type (columns) grid with headers.
 
     images_2d: list of lists, images_2d[row][col] is a PIL.Image or None.
@@ -203,7 +212,7 @@ def compose_grid(images_2d, row_labels, col_labels, bar_height=32, font_size=20)
     n_cols = len(images_2d[0])
 
     # Layout: row labels on left, column labels on top
-    label_col_width = 200  # width for row labels
+    label_col_width = _LABEL_COL_WIDTH
     total_w = label_col_width + n_cols * cell_w
     total_h = bar_height + n_rows * (cell_h + bar_height)
 

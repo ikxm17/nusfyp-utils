@@ -143,6 +143,10 @@ def main():
 
     args = parser.parse_args()
 
+    if not os.path.isfile(args.config):
+        print(f"Error: config file not found: {args.config}", file=sys.stderr)
+        sys.exit(1)
+
     new_base = args.new_base or os.environ.get("HOME", str(Path.home()))
 
     fix_config(

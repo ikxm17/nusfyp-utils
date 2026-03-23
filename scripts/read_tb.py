@@ -40,6 +40,21 @@ _PRE_BASELINE_STEPS = 100
 # Window (in iterations) after activation to search for loss spike
 _SPIKE_DETECTION_WINDOW = 2000
 
+# ---------------------------------------------------------------------------
+# Observation thresholds (used in format_compact_comparison & generate_observations)
+# ---------------------------------------------------------------------------
+
+# Phase 2 spike ratio: above this is "critical"
+_SPIKE_CRITICAL_THRESHOLD = 10
+# Phase 2 spike ratio: above this is "concerning"
+_SPIKE_CONCERNING_THRESHOLD = 3
+# Phase 2 recovery duration (steps): above this is "slow"
+_RECOVERY_SLOW_THRESHOLD = 3000
+# Single loss component / total_loss: above this means it "dominates"
+_LOSS_DOMINANT_THRESHOLD = 0.5
+# B_inf channel value: above this is "implausibly high"
+_BINF_IMPLAUSIBLE_THRESHOLD = 0.5
+
 
 # ---------------------------------------------------------------------------
 # TensorBoard loading
@@ -848,9 +863,9 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
         ratio = s.get("per_phase/phase2_transition/spike_ratio")
         if ratio is not None:
             spike_vals.append(f"{ratio:.2f}x")
-            if ratio > 10:
+            if ratio > _SPIKE_CRITICAL_THRESHOLD:
                 spike_annots.append((i, "critical"))
-            elif ratio > 3:
+            elif ratio > _SPIKE_CONCERNING_THRESHOLD:
                 spike_annots.append((i, "concerning"))
             elif ratio >= 2:
                 spike_annots.append((i, "healthy"))
@@ -881,7 +896,7 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
         steps = s.get("per_phase/phase2_transition/recovery_steps")
         if steps is not None:
             recovery_vals.append(f"{int(steps):,} steps")
-            if steps > 3000:
+            if steps > _RECOVERY_SLOW_THRESHOLD:
                 recovery_annots.append(f"{short_labels[i]}: slow (>3k)" if n > 1 else "slow (>3k)")
         else:
             recovery_vals.append("\u2014")
@@ -966,11 +981,11 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
         if r is not None and g is not None and b is not None:
             binf_vals.append(f"{r:.3f}, {g:.3f}, {b:.3f}")
             high_channels = []
-            if r > 0.5:
+            if r > _BINF_IMPLAUSIBLE_THRESHOLD:
                 high_channels.append("r")
-            if g > 0.5:
+            if g > _BINF_IMPLAUSIBLE_THRESHOLD:
                 high_channels.append("g")
-            if b > 0.5:
+            if b > _BINF_IMPLAUSIBLE_THRESHOLD:
                 high_channels.append("b")
             if high_channels:
                 ch_str = ",".join(high_channels)
@@ -1064,8 +1079,8 @@ def generate_observations(summaries, labels, eval_metrics_list):
                 f"+{phase3_delta:.2f} dB, consider extending"
             )
 
-        # recovery_steps > 3000 -> slow recovery
-        if recovery_steps is not None and recovery_steps > 3000:
+        # recovery_steps > threshold -> slow recovery
+        if recovery_steps is not None and recovery_steps > _RECOVERY_SLOW_THRESHOLD:
             observations.append(
                 f"{name}: Phase 2 recovery slow ({int(recovery_steps):,} steps > 3,000 threshold) "
                 f"\u2014 consider later activation"
@@ -1087,30 +1102,30 @@ def generate_observations(summaries, labels, eval_metrics_list):
                         and k.endswith("_end")
                         and not k.endswith("_convergence")):
                     comp = k.split("/losses/")[1].replace("_end", "")
-                    if v is not None and v / total_loss_end > 0.5:
+                    if v is not None and v / total_loss_end > _LOSS_DOMINANT_THRESHOLD:
                         pct = v / total_loss_end * 100
                         observations.append(
                             f"{name}: {comp} dominates loss budget ({pct:.0f}%) "
                             f"\u2014 {comp} lambda may be too high"
                         )
 
-        # B_inf any channel > 0.5
+        # B_inf any channel implausibly high
         for ch, ch_name in [("binf_r", "B_inf_r"), ("binf_g", "B_inf_g"), ("binf_b", "B_inf_b")]:
             val = s.get(f"medium/{ch}")
-            if val is not None and val > 0.5:
+            if val is not None and val > _BINF_IMPLAUSIBLE_THRESHOLD:
                 observations.append(
                     f"{name}: {ch_name}={val:.3f} implausibly high "
                     f"\u2014 medium may be absorbing per-view variation"
                 )
 
-        # spike_ratio > 3
+        # spike_ratio thresholds
         if spike_ratio is not None:
-            if spike_ratio > 10:
+            if spike_ratio > _SPIKE_CRITICAL_THRESHOLD:
                 observations.append(
                     f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 critical, "
                     f"may permanently damage geometry"
                 )
-            elif spike_ratio > 3:
+            elif spike_ratio > _SPIKE_CONCERNING_THRESHOLD:
                 observations.append(
                     f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 concerning, "
                     f"consider later activation or smaller learning rates"

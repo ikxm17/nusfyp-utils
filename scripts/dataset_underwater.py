@@ -63,7 +63,7 @@ def compute_uciqe(img_bgr):
     p1, p99 = np.percentile(gray, [1, 99])
     con_l = (p99 - p1) / 255.0
 
-    uciqe = 0.4680 * sigma_c + 0.2745 * con_l + 0.2576 * mu_s
+    uciqe = 0.4680 * sigma_c + 0.2745 * con_l + 0.2576 * mu_s  # Yang & Sowmya 2015
     return float(uciqe)
 
 
@@ -80,12 +80,12 @@ def _uicm(img_rgb_f):
     mu_rg, mu_yb = rg.mean(), yb.mean()
     var_rg, var_yb = rg.var(), yb.var()
 
-    return -0.0268 * np.sqrt(mu_rg ** 2 + mu_yb ** 2) + 0.1586 * np.sqrt(var_rg + var_yb)
+    return -0.0268 * np.sqrt(mu_rg ** 2 + mu_yb ** 2) + 0.1586 * np.sqrt(var_rg + var_yb)  # Panetta et al. 2016
 
 
 def _uism(img_bgr_f):
     """Sharpness metric via Sobel EME on each channel."""
-    block_h, block_w = 10, 10
+    block_h, block_w = 10, 10  # Panetta et al. 2016
     eme_channels = []
     for c in range(3):
         ch = img_bgr_f[:, :, c]
@@ -111,7 +111,7 @@ def _uism(img_bgr_f):
 
 def _uiconm(gray_f):
     """Contrast metric via block Michelson + logAMEE."""
-    block_h, block_w = 10, 10
+    block_h, block_w = 10, 10  # Panetta et al. 2016
     h, w = gray_f.shape
     h_trunc = (h // block_h) * block_h
     w_trunc = (w // block_w) * block_w
@@ -124,7 +124,7 @@ def _uiconm(gray_f):
     bmin = blocks.min(axis=(1, 2))
 
     contrast = (bmax - bmin) / (bmax + bmin + 1e-8)
-    alpha = 0.1
+    alpha = 0.1  # Panetta et al. 2016
     log_amee = np.mean(contrast ** alpha * np.log(contrast + 1e-8))
     return float(log_amee)
 
@@ -139,7 +139,7 @@ def compute_uiqm(img_bgr):
     uism = _uism(img_f)
     uiconm = _uiconm(gray_f)
 
-    uiqm = 0.0282 * uicm + 0.2953 * uism + 3.5753 * uiconm
+    uiqm = 0.0282 * uicm + 0.2953 * uism + 3.5753 * uiconm  # Panetta et al. 2016
     return float(uiqm)
 
 

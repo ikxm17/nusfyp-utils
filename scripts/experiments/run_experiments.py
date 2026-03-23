@@ -46,11 +46,16 @@ def load_config(config_path: str):
 
 
 def validate_extra_args(experiments: list[dict]) -> list[str]:
-    """Check that extra_args keys are valid ns-train flags. Returns warnings."""
+    """Check that extra_args keys are valid ns-train flags. Returns error list.
+
+    Returns an empty list when validation passes or when nerfstudio is not
+    importable (prints a warning to stderr and skips validation).
+    """
     try:
         from nerfstudio.configs.method_configs import all_methods
     except ImportError:
-        return ["nerfstudio not importable — skipping flag validation"]
+        print("Warning: nerfstudio not importable — skipping flag validation", file=sys.stderr)
+        return []
 
     warnings = []
     checked: set[tuple[str, str]] = set()
