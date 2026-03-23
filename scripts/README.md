@@ -17,7 +17,8 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `read_tb.py` | Read and analyze TensorBoard training curves from experiment runs |
 | `dataset_quality.py` | Per-frame image quality assessment (blur, brightness, outlier detection) |
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
-| `dataset_underwater.py` | Underwater dataset characterization |
+| `dataset_underwater.py` | Underwater dataset characterization (color cast, turbidity, depth-color correlation, temporal variance) |
+| `decompose_metrics.py` | Decompose SSIM (luminance/contrast/structure) and LPIPS (per-layer) from experiment renders |
 
 ### Agent scripts (`agents/`)
 
@@ -834,7 +835,7 @@ Report includes:
 
 ## dataset_underwater.py
 
-Underwater dataset characterization tool. Computes per-frame color cast, turbidity, and visibility metrics for underwater image datasets.
+Underwater dataset characterization tool. Computes per-frame color cast, turbidity, and visibility metrics for underwater image datasets. Optionally correlates metrics with COLMAP depth and detects temporal appearance outliers.
 
 ### Usage
 
@@ -848,8 +849,15 @@ python scripts/dataset_underwater.py /path/to/images/ --sort uciqe
 # JSON output to file
 python scripts/dataset_underwater.py /path/to/images/ --json -o analysis.json
 
-# Custom dark channel patch size
-python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
+# Depth-color correlation (requires COLMAP data or transforms.json)
+python scripts/dataset_underwater.py /path/to/images/ --depth-source /path/to/dataset/
+
+# Inter-frame temporal variance analysis
+python scripts/dataset_underwater.py /path/to/images/ --temporal --temporal-window 10
+
+# Full analysis with all extensions
+python scripts/dataset_underwater.py /path/to/images/ \
+    --depth-source /path/to/dataset/ --temporal --json
 ```
 
 ### Arguments
@@ -863,6 +871,10 @@ python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
 | `--canny-high <int>` | Canny edge detector high threshold | `150` |
 | `-o, --output <file>` | Write output to file instead of stdout | stdout |
 | `--json` | Output JSON instead of text | off |
+| `--depth-source <path>` | Path to COLMAP sparse dir, transforms.json, or dataset dir for depth-color correlation | off |
+| `--depth-bins <int>` | Number of equal-count depth bins | `5` |
+| `--temporal` | Enable inter-frame appearance variance analysis | off |
+| `--temporal-window <int>` | Rolling window size for temporal stats | `5` |
 
 ### Metrics
 
@@ -879,17 +891,89 @@ python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
 **Visibility**:
 - RMS contrast — grayscale standard deviation normalized by mean
 - Edge density — fraction of Canny edge pixels
+- Mean luminance — average grayscale brightness [0, 1]
+
+**Depth-color correlation** (with `--depth-source`):
+- Pearson and Spearman correlations between camera depth and each color metric
+- Per-bin average color metrics across equal-count depth bins
+- Predicts whether the medium model's depth-uniform assumptions hold
+
+**Temporal variance** (with `--temporal`):
+- Frame-to-frame deltas for luminance, R/G ratio, B/G ratio
+- Rolling window std over configurable window
+- Outlier cluster detection (contiguous frames beyond 2 sigma)
+- Predicts Phase 3 difficulty (high variance → ROV lighting → expected drift)
 
 ### Output
 
-**Text** (default): Summary statistics → compact per-frame table (R/G, B/G, GW_Dev, UCIQE, UIQM, DCP_Mean).
+**Text** (default): Summary statistics → compact per-frame table → optional depth-color correlation → optional temporal analysis.
 
-**JSON** (`--json`): `metadata` + `summary` (all metrics with stats) + `per_frame` (all metrics per frame).
+**JSON** (`--json`): `metadata` + `summary` + `per_frame` + optional `depth_correlation` + optional `temporal`.
 
 ### Dependencies
 
 - `cv2` (OpenCV) — color conversion, Sobel, Canny, erode
 - `numpy` — statistics, block operations
+- `scipy` (conditional) — Pearson/Spearman correlations (only when `--depth-source` used)
+- `dataset_depth.py` (import) — COLMAP/transforms.json depth loading (only when `--depth-source` used)
+
+---
+
+## decompose_metrics.py
+
+Post-hoc decomposition of SSIM and LPIPS metrics into per-component scores. Computes SSIM luminance/contrast/structure (Wang 2004) and LPIPS per-layer distances from rendered test frames vs ground truth.
+
+### Usage
+
+```bash
+# Decompose metrics for an experiment
+python scripts/decompose_metrics.py <experiment_spec> --outputs-dir ../fyp-playground/outputs
+
+# Compare decompositions across experiments
+python scripts/decompose_metrics.py tune10_gw05 tune10_gw15 --outputs-dir ../fyp-playground/outputs
+
+# JSON output with explicit dataset directory
+python scripts/decompose_metrics.py <experiment_spec> --json \
+    --outputs-dir ../fyp-playground/outputs \
+    --dataset-dir ../fyp-playground/datasets/saltpond/saltpond_unprocessed
+
+# Run on CPU
+python scripts/decompose_metrics.py <experiment_spec> --device cpu --outputs-dir ../fyp-playground/outputs
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `specs` (positional) | Experiment path specs (substring, method dir, or timestamp dir) | required |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--dataset-dir <path>` | Override GT dataset directory (when config.yml has stale remote paths) | from config.yml |
+| `--json` | Output JSON instead of text | off |
+| `--device <device>` | Compute device | `cuda` if available, else `cpu` |
+| `--lpips-net {alex,vgg,squeeze}` | LPIPS backbone network | `alex` |
+
+### What it does
+
+1. Resolve experiment run directory and load `config.yml`
+2. Determine test split indices from dataparser config (fraction/interval mode)
+3. Load GT images from the dataset directory (respects downscale factor)
+4. Extract rendered frames from `renders/dataset/test/underwater_rgb.mp4`
+5. Compute per-frame SSIM components (luminance, contrast, structure) and LPIPS per-layer distances
+6. Aggregate and output results
+
+### Notes / Caveats
+
+- SSIM uses the Wang 2004 three-component formula (l*c*s), which differs slightly (~0.003) from pytorch_msssim's simplified formula (l*cs). Both are standard; the decomposition requires the three-component form.
+- LPIPS per-layer distances sum exactly to the total LPIPS score.
+- Requires `--dataset-dir` when config.yml contains paths from a remote machine (e.g., Vanda).
+- LPIPS requires a neural network forward pass; CPU is slower but works without GPU.
+
+### Dependencies
+
+- `torch`, `pytorch_msssim` — SSIM computation
+- `torchmetrics` — LPIPS per-layer extraction (`_LPIPS` internal class)
+- `cv2` (OpenCV) — MP4 frame extraction, image loading
+- `read_config.py`, `eval_experiments.py` — path resolution
 
 ---
 
@@ -952,7 +1036,7 @@ python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/ou
 Writes `report.json` to `--analysis-dir` with:
 - `batch_prefix`, `experiments` (list of names)
 - `metrics` — per-experiment eval metrics (PSNR, SSIM, LPIPS, clean_psnr, etc.)
-- `tb_analysis` — full text output from `read_tb.py compare`
+- `tb_analysis` — structured TensorBoard summaries (list of `{"label", "summary"}` dicts from `read_tb.py compare --json`)
 - `render_info` — total frame count and selected frame indices
 - `grid_images` — paths to generated comparison grid PNGs
 - `color_analysis` — per-experiment color metrics (R/G ratio, gray-world deviation, CIELAB, DCP)
