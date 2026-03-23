@@ -7,6 +7,8 @@ Usage:
     python scripts/dataset_underwater.py <image_dir>
     python scripts/dataset_underwater.py <image_dir> --sort uciqe
     python scripts/dataset_underwater.py <image_dir> --json -o analysis.json
+    python scripts/dataset_underwater.py <image_dir> --temporal
+    python scripts/dataset_underwater.py <image_dir> --temporal --temporal-window 10
 """
 
 import argparse
@@ -197,7 +199,180 @@ def analyze_frame(path, dcp_patch_size=41, canny_low=50, canny_high=150):
     result["uiqm"] = compute_uiqm(img)
     result.update(compute_dark_channel(img, dcp_patch_size))
     result.update(compute_visibility(gray, canny_low, canny_high))
+    result["mean_luminance"] = float(gray.mean() / 255.0)
     return result
+
+
+# ---------------------------------------------------------------------------
+# Temporal analysis
+# ---------------------------------------------------------------------------
+
+# Outlier threshold: frames beyond this many std deviations are flagged
+_OUTLIER_SIGMA = 2
+
+
+def compute_temporal_stats(results, window=5):
+    """Compute inter-frame appearance variance and detect outlier clusters.
+
+    Args:
+        results: list of per-frame metric dicts (must be in temporal order).
+        window: rolling window size for variance computation.
+
+    Returns dict with 'global', 'per_frame', 'outlier_clusters', 'temporal_window'.
+    """
+    n = len(results)
+    if n < 2:
+        return {
+            "global": {},
+            "per_frame": [],
+            "outlier_clusters": [],
+            "temporal_window": window,
+        }
+
+    tracked_metrics = ["mean_luminance", "rg_ratio", "bg_ratio"]
+    series = {m: np.array([r[m] for r in results]) for m in tracked_metrics}
+
+    # Global stats
+    global_stats = {}
+    for m in tracked_metrics:
+        global_stats[f"{m}_mean"] = float(series[m].mean())
+        global_stats[f"{m}_std"] = float(series[m].std())
+
+    # Per-frame deltas and rolling std
+    per_frame = []
+    for i in range(n):
+        entry = {"frame": results[i]["frame"]}
+
+        # Frame-to-frame deltas
+        for m in tracked_metrics:
+            if i > 0:
+                entry[f"delta_{m}"] = float(abs(series[m][i] - series[m][i - 1]))
+            else:
+                entry[f"delta_{m}"] = 0.0
+
+        # Rolling window std
+        for m in tracked_metrics:
+            start = max(0, i - window + 1)
+            win = series[m][start:i + 1]
+            entry[f"{m}_rolling_std"] = float(win.std()) if len(win) > 1 else 0.0
+
+        per_frame.append(entry)
+
+    # Max deltas
+    for m in tracked_metrics:
+        deltas = [pf[f"delta_{m}"] for pf in per_frame[1:]]
+        if deltas:
+            max_idx = int(np.argmax(deltas)) + 1  # +1 because deltas start from frame 1
+            global_stats[f"max_delta_{m}"] = float(max(deltas))
+            global_stats[f"max_delta_{m}_frame"] = results[max_idx]["frame"]
+
+    # Outlier detection: flag frames where any tracked metric exceeds mean +/- 2*std
+    outlier_flags = [False] * n
+    outlier_metrics_per_frame = [[] for _ in range(n)]
+
+    for m in tracked_metrics:
+        mean = series[m].mean()
+        std = series[m].std()
+        if std == 0:
+            continue
+        for i in range(n):
+            deviation = abs(series[m][i] - mean) / std
+            if deviation > _OUTLIER_SIGMA:
+                outlier_flags[i] = True
+                outlier_metrics_per_frame[i].append(m)
+
+    for i in range(n):
+        per_frame[i]["is_outlier"] = outlier_flags[i]
+        per_frame[i]["outlier_metrics"] = outlier_metrics_per_frame[i]
+
+    # Cluster contiguous outliers
+    clusters = []
+    i = 0
+    while i < n:
+        if outlier_flags[i]:
+            start = i
+            cluster_metrics = set(outlier_metrics_per_frame[i])
+            max_dev = 0.0
+            while i < n and outlier_flags[i]:
+                cluster_metrics.update(outlier_metrics_per_frame[i])
+                for m in outlier_metrics_per_frame[i]:
+                    std = series[m].std()
+                    if std > 0:
+                        dev = abs(series[m][i] - series[m].mean()) / std
+                        max_dev = max(max_dev, dev)
+                i += 1
+            clusters.append({
+                "start_frame": results[start]["frame"],
+                "end_frame": results[i - 1]["frame"],
+                "start_idx": start,
+                "end_idx": i - 1,
+                "length": i - start,
+                "metrics": sorted(cluster_metrics),
+                "max_deviation_sigma": round(max_dev, 2),
+            })
+        else:
+            i += 1
+
+    return {
+        "global": global_stats,
+        "per_frame": per_frame,
+        "outlier_clusters": clusters,
+        "temporal_window": window,
+    }
+
+
+def build_temporal_text_section(temporal_data):
+    """Format temporal analysis as text lines."""
+    lines = []
+    lines.append("Temporal Analysis")
+    lines.append("-----------------")
+
+    g = temporal_data["global"]
+    window = temporal_data["temporal_window"]
+    lines.append(f"Rolling window: {window} frames")
+    lines.append("")
+
+    if not g:
+        lines.append("  Insufficient frames for temporal analysis.")
+        return lines
+
+    lines.append("Global Statistics:")
+    for m in ["mean_luminance", "rg_ratio", "bg_ratio"]:
+        mean_key = f"{m}_mean"
+        std_key = f"{m}_std"
+        if mean_key in g:
+            label = m.replace("_", " ").title()
+            lines.append(f"  {label:20s}  {g[mean_key]:.4f} +/- {g[std_key]:.4f}")
+
+    lines.append("")
+    lines.append("Max Frame-to-Frame Deltas:")
+    for m in ["mean_luminance", "rg_ratio", "bg_ratio"]:
+        delta_key = f"max_delta_{m}"
+        frame_key = f"max_delta_{m}_frame"
+        if delta_key in g:
+            label = m.replace("_", " ").title()
+            lines.append(f"  {label:20s}  {g[delta_key]:.4f}  ({g[frame_key]})")
+
+    clusters = temporal_data["outlier_clusters"]
+    lines.append("")
+    if clusters:
+        lines.append(f"Outlier Clusters ({_OUTLIER_SIGMA} sigma):")
+        for c in clusters:
+            if c["length"] == 1:
+                lines.append(
+                    f"  Frame {c['start_frame']}: "
+                    f"{', '.join(c['metrics'])} deviation {c['max_deviation_sigma']:.1f} sigma"
+                )
+            else:
+                lines.append(
+                    f"  Frames {c['start_frame']} - {c['end_frame']} "
+                    f"({c['length']} frames): "
+                    f"{', '.join(c['metrics'])} deviation {c['max_deviation_sigma']:.1f} sigma"
+                )
+    else:
+        lines.append("No outlier clusters detected.")
+
+    return lines
 
 
 # ---------------------------------------------------------------------------
@@ -213,7 +388,8 @@ def _stat_row(label, values, width=19):
     )
 
 
-def build_text_report(image_dir, resolution, results, summary):
+def build_text_report(image_dir, resolution, results, summary,
+                      temporal_data=None):
     """Build lines-based text report."""
     lines = []
     lines.append("Underwater Dataset Analysis")
@@ -239,6 +415,7 @@ def build_text_report(image_dir, resolution, results, summary):
         ("dcp_mean", "DCP mean"),
         ("rms_contrast", "RMS contrast"),
         ("edge_density", "Edge density"),
+        ("mean_luminance", "Mean luminance"),
     ]:
         vals = [r[key] for r in results]
         lines.append(_stat_row(label, vals))
@@ -254,10 +431,15 @@ def build_text_report(image_dir, resolution, results, summary):
             f"{r['gw_deviation']:6.3f} {r['uciqe']:6.4f} {r['uiqm']:7.4f} {r['dcp_mean']:6.4f}"
         )
 
+    if temporal_data is not None:
+        lines.append("")
+        lines.extend(build_temporal_text_section(temporal_data))
+
     return "\n".join(lines) + "\n"
 
 
-def build_json_output(image_dir, resolution, results, summary):
+def build_json_output(image_dir, resolution, results, summary,
+                      temporal_data=None):
     """Build JSON output dict."""
     output = {
         "metadata": {
@@ -268,6 +450,8 @@ def build_json_output(image_dir, resolution, results, summary):
         "summary": summary,
         "per_frame": results,
     }
+    if temporal_data is not None:
+        output["temporal"] = temporal_data
     return json.dumps(output, indent=2)
 
 
@@ -289,6 +473,11 @@ def main():
     parser.add_argument("-o", "--output", help="Write to file instead of stdout")
     parser.add_argument("--json", action="store_true", dest="json_output",
                         help="Output JSON instead of text")
+    parser.add_argument("--temporal", action="store_true",
+                        help="Enable inter-frame appearance variance analysis")
+    parser.add_argument("--temporal-window", type=int, default=5,
+                        dest="temporal_window",
+                        help="Rolling window size for temporal stats (default: 5)")
     args = parser.parse_args()
 
     image_dir = os.path.abspath(args.image_dir)
@@ -336,7 +525,7 @@ def main():
     metric_keys = [
         "rg_ratio", "bg_ratio", "gw_deviation", "mean_a_star", "mean_b_star",
         "uciqe", "uiqm", "dcp_mean", "dcp_std", "dcp_max", "dcp_p95",
-        "rms_contrast", "edge_density",
+        "rms_contrast", "edge_density", "mean_luminance",
     ]
     summary = {}
     for key in metric_keys:
@@ -349,11 +538,20 @@ def main():
             "max": float(vals.max()),
         }
 
+    # Temporal analysis (must run before sorting distorts temporal order)
+    temporal_data = None
+    if args.temporal:
+        # Use unsorted results for temporal analysis (sorted by filename = temporal order)
+        temporal_results = sorted(results, key=lambda r: r["frame"])
+        temporal_data = compute_temporal_stats(temporal_results, args.temporal_window)
+
     # Output
     if args.json_output:
-        report = build_json_output(image_dir, (w, h), results, summary)
+        report = build_json_output(image_dir, (w, h), results, summary,
+                                   temporal_data=temporal_data)
     else:
-        report = build_text_report(image_dir, (w, h), results, summary)
+        report = build_text_report(image_dir, (w, h), results, summary,
+                                   temporal_data=temporal_data)
 
     if args.output:
         with open(args.output, "w") as f:
