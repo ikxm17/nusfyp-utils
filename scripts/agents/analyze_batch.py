@@ -270,15 +270,16 @@ def read_metrics(timestamp_dir):
 # ---------------------------------------------------------------------------
 
 def run_tb_analysis(experiments, outputs_dir):
-    """Run read_tb.py compare on all experiments.
+    """Run read_tb.py compare --json on all experiments.
 
-    Returns the full text output.
+    Returns a list of {"label": str, "summary": dict} dicts with structured
+    TensorBoard summaries, or a string error message on failure.
     """
     if not experiments:
-        return "No experiments to compare."
+        return []
 
     exp_specs = [spec for _, spec, _ in experiments]
-    args = ["compare"] + exp_specs + ["--verbose", "--outputs-dir", str(outputs_dir)]
+    args = ["compare"] + exp_specs + ["--json", "--outputs-dir", str(outputs_dir)]
     stdout, stderr, rc = run_script("read_tb.py", args)
 
     if rc != 0:
@@ -287,7 +288,13 @@ def run_tb_analysis(experiments, outputs_dir):
             msg += f":\n{stderr.strip()}"
         return msg
 
-    return stdout.strip() if stdout.strip() else "No TB data available."
+    if not stdout.strip():
+        return []
+
+    try:
+        return json.loads(stdout)
+    except json.JSONDecodeError as e:
+        return f"read_tb.py returned invalid JSON: {e}"
 
 
 # ---------------------------------------------------------------------------

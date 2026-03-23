@@ -3,7 +3,7 @@
 Usage:
     python scripts/read_tb.py summary <paths...> [--outputs-dir <path>] [--window N]
     python scripts/read_tb.py compare <paths...> [--outputs-dir <path>] [--window N]
-    python scripts/read_tb.py compare <paths...> --verbose     # full table (agent use)
+    python scripts/read_tb.py compare <paths...> --verbose     # full table with all metrics
     python scripts/read_tb.py compare <paths...> --describe    # compact + observations
     python scripts/read_tb.py export <path> [--outputs-dir <path>] [--format csv|json]
 
