@@ -18,7 +18,12 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `dataset_quality.py` | Per-frame image quality assessment (blur, brightness, outlier detection) |
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
 | `dataset_underwater.py` | Underwater dataset characterization |
-| `analyze_batch.py` | Gather all quantitative analysis for a batch of experiments into structured JSON |
+
+### Agent scripts (`agents/`)
+
+| Script | Purpose |
+|--------|---------|
+| `agents/analyze_batch.py` | Gather all quantitative analysis for a batch of experiments into structured JSON |
 
 ### Script relationships
 
@@ -40,9 +45,9 @@ log_experiments.py ──> read_tb.py          (uses find_runs for run discovery
 eval_experiments.py ──> read_tb.py         (uses resolve_runs for flexible path specs)
 change_config_path.py                       (standalone — used manually when moving between machines)
 
-read_tb.py ──> analyze_batch.py            (batch analyzer calls TB comparison)
-compare_renders.py ──> analyze_batch.py    (batch analyzer calls grid + extract)
-dataset_underwater.py ──> analyze_batch.py (batch analyzer calls color analysis)
+read_tb.py ──> agents/analyze_batch.py     (batch analyzer calls TB comparison)
+compare_renders.py ──> agents/analyze_batch.py  (batch analyzer calls grid + extract)
+dataset_underwater.py ──> agents/analyze_batch.py (batch analyzer calls color analysis)
 ```
 
 ---
@@ -888,7 +893,9 @@ python scripts/dataset_underwater.py /path/to/images/ --dcp-patch-size 21
 
 ---
 
-## analyze_batch.py
+## agents/analyze_batch.py
+
+Agent infrastructure script — called by `/auto-experiment` and `/auto-analyze` workflows, not intended for direct human use.
 
 Gathers all quantitative analysis for a batch of experiments into a single structured JSON report. Replaces ~25 individual tool calls during auto-analyze with one script invocation. Orchestrates existing scripts (`read_tb.py`, `compare_renders.py`, `dataset_underwater.py`) via subprocess calls and combines their outputs with `metrics.json` data and dataset input analysis.
 
@@ -896,7 +903,7 @@ Gathers all quantitative analysis for a batch of experiments into a single struc
 
 ```bash
 # Full analysis for a batch
-python scripts/analyze_batch.py tune10 \
+python scripts/agents/analyze_batch.py tune10 \
     --outputs-dir ../fyp-playground/outputs \
     --analysis-dir /tmp/batch-analysis \
     --dataset-analysis ../fyp-playground/datasets/saltpond/analysis.md \
@@ -905,13 +912,13 @@ python scripts/analyze_batch.py tune10 \
     --max-width 480
 
 # Minimal (just metrics + TB, skip visual analysis)
-python scripts/analyze_batch.py tune10 \
+python scripts/agents/analyze_batch.py tune10 \
     --outputs-dir ../fyp-playground/outputs \
     --analysis-dir /tmp/batch-analysis \
     --num-frames 0
 
 # Default output types (rgb, underwater_rgb, depth, accumulation, backscatter, attenuation_map)
-python scripts/analyze_batch.py tune10 --outputs-dir ../fyp-playground/outputs
+python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/outputs
 ```
 
 ### Arguments

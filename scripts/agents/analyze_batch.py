@@ -3,7 +3,7 @@
 Replaces ~25 individual tool calls during auto-analyze with a single script invocation.
 
 Usage:
-    python scripts/analyze_batch.py tune10 \
+    python scripts/agents/analyze_batch.py tune10 \
         --outputs-dir ../fyp-playground/outputs \
         --analysis-dir /tmp/batch-analysis \
         --dataset-analysis ../fyp-playground/datasets/saltpond/saltpond_unprocessed/analysis.md \
@@ -26,6 +26,7 @@ Steps:
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -36,7 +37,7 @@ from pathlib import Path
 # Helpers
 # ---------------------------------------------------------------------------
 
-SCRIPTS_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = Path(__file__).resolve().parent.parent  # scripts/ (parent of agents/)
 
 
 def log(msg):
@@ -584,7 +585,6 @@ def main():
     args = parser.parse_args()
 
     # Resolve outputs dir (same logic as read_config.py)
-    import os
     if args.outputs_dir:
         outputs_dir = Path(args.outputs_dir).expanduser().resolve()
     else:
@@ -706,7 +706,7 @@ def main():
                 deleted_count += 1
         if deleted_count:
             log(f"  Deleted {deleted_count} tfevents files, "
-                f"reclaimed {deleted_bytes / 1073741824:.2f} GB")
+                f"reclaimed {deleted_bytes / 1024**3:.2f} GB")
         else:
             log("  No tfevents files found to clean up")
 
