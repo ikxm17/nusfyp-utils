@@ -9,6 +9,7 @@ Usage:
     python scripts/dataset_underwater.py <image_dir> --json -o analysis.json
     python scripts/dataset_underwater.py <image_dir> --temporal
     python scripts/dataset_underwater.py <image_dir> --temporal --temporal-window 10
+    python scripts/dataset_underwater.py <image_dir> --depth-source <colmap_or_dataset_dir>
 """
 
 import argparse
@@ -204,6 +205,184 @@ def analyze_frame(path, dcp_patch_size=41, canny_low=50, canny_high=150):
 
 
 # ---------------------------------------------------------------------------
+# Depth-color correlation
+# ---------------------------------------------------------------------------
+
+def compute_depth_per_frame(depth_source_path):
+    """Compute per-camera median depth from COLMAP or transforms.json.
+
+    Args:
+        depth_source_path: path to COLMAP sparse dir, transforms.json, or
+            dataset directory (auto-detected via dataset_depth._detect_input).
+
+    Returns dict mapping image basename to median scene depth.
+    """
+    from dataset_depth import (
+        _detect_input,
+        _compute_colmap_depths,
+        _compute_transforms_depths,
+    )
+
+    mode, base_dir = _detect_input(depth_source_path)
+    if mode is None:
+        print(f"  Warning: could not detect depth source at {depth_source_path}",
+              file=sys.stderr)
+        return {}
+
+    print(f"  Loading depth data ({mode} mode)...", file=sys.stderr)
+    if mode == "colmap":
+        results, _, _, _ = _compute_colmap_depths(base_dir)
+    else:
+        results, _, _, _ = _compute_transforms_depths(base_dir)
+
+    depth_map = {}
+    for name, _cam_pos, dists, _n_pts in results:
+        basename = os.path.basename(name)
+        if len(dists) > 0:
+            depth_map[basename] = float(np.median(dists))
+
+    return depth_map
+
+
+def compute_depth_color_correlation(results, depth_map, n_bins=5):
+    """Correlate per-frame color metrics with camera depth.
+
+    Args:
+        results: list of per-frame metric dicts from analyze_frame().
+        depth_map: dict mapping image basename to median depth.
+        n_bins: number of equal-count depth bins.
+
+    Returns dict with 'correlations', 'depth_bins', 'frames_matched',
+    'frames_unmatched'.
+    """
+    from scipy.stats import pearsonr, spearmanr
+
+    color_metrics = [
+        "rg_ratio", "bg_ratio", "gw_deviation", "mean_a_star", "mean_b_star",
+        "uciqe", "uiqm", "dcp_mean",
+    ]
+
+    # Match frames by basename
+    matched = []
+    unmatched = 0
+    for r in results:
+        depth = depth_map.get(r["frame"])
+        if depth is not None:
+            matched.append((depth, r))
+        else:
+            unmatched += 1
+
+    if len(matched) < 3:
+        return {
+            "correlations": {},
+            "depth_bins": [],
+            "frames_matched": len(matched),
+            "frames_unmatched": unmatched,
+        }
+
+    # Sort by depth for binning
+    matched.sort(key=lambda x: x[0])
+    depths = np.array([d for d, _ in matched])
+
+    # Correlations
+    correlations = {}
+    for m in color_metrics:
+        vals = np.array([r[m] for _, r in matched])
+        if np.std(vals) == 0 or np.std(depths) == 0:
+            continue
+        pr, pp = pearsonr(depths, vals)
+        sr, sp = spearmanr(depths, vals)
+        correlations[m] = {
+            "pearson_r": round(float(pr), 4),
+            "pearson_p": round(float(pp), 4),
+            "spearman_r": round(float(sr), 4),
+            "spearman_p": round(float(sp), 4),
+        }
+
+    # Equal-count depth bins
+    bin_edges = np.percentile(depths, np.linspace(0, 100, n_bins + 1))
+    depth_bins = []
+    for i in range(n_bins):
+        lo, hi = bin_edges[i], bin_edges[i + 1]
+        if i == n_bins - 1:
+            bin_items = [(d, r) for d, r in matched if lo <= d <= hi]
+        else:
+            bin_items = [(d, r) for d, r in matched if lo <= d < hi]
+
+        if not bin_items:
+            continue
+
+        bin_depths = [d for d, _ in bin_items]
+        bin_entry = {
+            "range": f"{lo:.2f}-{hi:.2f}",
+            "depth_mean": round(float(np.mean(bin_depths)), 3),
+            "count": len(bin_items),
+        }
+        for m in color_metrics:
+            vals = [r[m] for _, r in bin_items]
+            bin_entry[m] = round(float(np.mean(vals)), 4)
+        depth_bins.append(bin_entry)
+
+    return {
+        "correlations": correlations,
+        "depth_bins": depth_bins,
+        "frames_matched": len(matched),
+        "frames_unmatched": unmatched,
+    }
+
+
+def build_depth_text_section(correlation_data):
+    """Format depth-color correlation as text lines."""
+    lines = []
+    lines.append("Depth-Color Correlation")
+    lines.append("-----------------------")
+
+    matched = correlation_data["frames_matched"]
+    unmatched = correlation_data["frames_unmatched"]
+    total = matched + unmatched
+    lines.append(f"Frames matched: {matched}/{total}")
+
+    if not correlation_data["correlations"]:
+        lines.append("  Insufficient matched frames for correlation analysis.")
+        return lines
+
+    # Correlation table
+    lines.append("")
+    lines.append("Correlations (depth vs metric):")
+    hdr = f"  {'Metric':20s} {'Pearson r':>10s} {'p-value':>10s} {'Spearman r':>10s} {'p-value':>10s}"
+    lines.append(hdr)
+    metric_labels = {
+        "rg_ratio": "R/G ratio", "bg_ratio": "B/G ratio",
+        "gw_deviation": "Gray-world dev", "mean_a_star": "CIELAB a*",
+        "mean_b_star": "CIELAB b*", "uciqe": "UCIQE", "uiqm": "UIQM",
+        "dcp_mean": "DCP mean",
+    }
+    for m, corr in correlation_data["correlations"].items():
+        label = metric_labels.get(m, m)
+        lines.append(
+            f"  {label:20s} {corr['pearson_r']:10.4f} {corr['pearson_p']:10.4f} "
+            f"{corr['spearman_r']:10.4f} {corr['spearman_p']:10.4f}"
+        )
+
+    # Depth bins table
+    bins = correlation_data["depth_bins"]
+    if bins:
+        lines.append("")
+        lines.append("Per-Bin Averages:")
+        bin_hdr = f"  {'Depth Range':16s} {'Count':>6s} {'R/G':>7s} {'B/G':>7s} {'GW_Dev':>7s} {'UCIQE':>7s} {'DCP':>7s}"
+        lines.append(bin_hdr)
+        for b in bins:
+            lines.append(
+                f"  {b['range']:16s} {b['count']:6d} "
+                f"{b.get('rg_ratio', 0):7.3f} {b.get('bg_ratio', 0):7.3f} "
+                f"{b.get('gw_deviation', 0):7.3f} {b.get('uciqe', 0):7.4f} "
+                f"{b.get('dcp_mean', 0):7.4f}"
+            )
+
+    return lines
+
+
+# ---------------------------------------------------------------------------
 # Temporal analysis
 # ---------------------------------------------------------------------------
 
@@ -389,7 +568,7 @@ def _stat_row(label, values, width=19):
 
 
 def build_text_report(image_dir, resolution, results, summary,
-                      temporal_data=None):
+                      temporal_data=None, depth_correlation=None):
     """Build lines-based text report."""
     lines = []
     lines.append("Underwater Dataset Analysis")
@@ -431,6 +610,10 @@ def build_text_report(image_dir, resolution, results, summary,
             f"{r['gw_deviation']:6.3f} {r['uciqe']:6.4f} {r['uiqm']:7.4f} {r['dcp_mean']:6.4f}"
         )
 
+    if depth_correlation is not None:
+        lines.append("")
+        lines.extend(build_depth_text_section(depth_correlation))
+
     if temporal_data is not None:
         lines.append("")
         lines.extend(build_temporal_text_section(temporal_data))
@@ -439,7 +622,7 @@ def build_text_report(image_dir, resolution, results, summary,
 
 
 def build_json_output(image_dir, resolution, results, summary,
-                      temporal_data=None):
+                      temporal_data=None, depth_correlation=None):
     """Build JSON output dict."""
     output = {
         "metadata": {
@@ -450,6 +633,8 @@ def build_json_output(image_dir, resolution, results, summary,
         "summary": summary,
         "per_frame": results,
     }
+    if depth_correlation is not None:
+        output["depth_correlation"] = depth_correlation
     if temporal_data is not None:
         output["temporal"] = temporal_data
     return json.dumps(output, indent=2)
@@ -473,6 +658,11 @@ def main():
     parser.add_argument("-o", "--output", help="Write to file instead of stdout")
     parser.add_argument("--json", action="store_true", dest="json_output",
                         help="Output JSON instead of text")
+    parser.add_argument("--depth-source", default=None, dest="depth_source",
+                        help="Path to COLMAP sparse dir, transforms.json, or dataset dir "
+                             "for depth-color correlation analysis")
+    parser.add_argument("--depth-bins", type=int, default=5, dest="depth_bins",
+                        help="Number of depth bins for correlation analysis (default: 5)")
     parser.add_argument("--temporal", action="store_true",
                         help="Enable inter-frame appearance variance analysis")
     parser.add_argument("--temporal-window", type=int, default=5,
@@ -538,20 +728,35 @@ def main():
             "max": float(vals.max()),
         }
 
-    # Temporal analysis (must run before sorting distorts temporal order)
+    # Depth-color correlation
+    depth_correlation = None
+    if args.depth_source:
+        print("  Computing depth-color correlation...", file=sys.stderr)
+        depth_map = compute_depth_per_frame(args.depth_source)
+        if depth_map:
+            depth_correlation = compute_depth_color_correlation(
+                results, depth_map, args.depth_bins)
+            print(f"  Matched {depth_correlation['frames_matched']}/"
+                  f"{depth_correlation['frames_matched'] + depth_correlation['frames_unmatched']}"
+                  f" frames to depth data", file=sys.stderr)
+        else:
+            print("  Warning: no depth data could be loaded", file=sys.stderr)
+
+    # Temporal analysis (uses filename-sorted order regardless of --sort)
     temporal_data = None
     if args.temporal:
-        # Use unsorted results for temporal analysis (sorted by filename = temporal order)
         temporal_results = sorted(results, key=lambda r: r["frame"])
         temporal_data = compute_temporal_stats(temporal_results, args.temporal_window)
 
     # Output
     if args.json_output:
         report = build_json_output(image_dir, (w, h), results, summary,
-                                   temporal_data=temporal_data)
+                                   temporal_data=temporal_data,
+                                   depth_correlation=depth_correlation)
     else:
         report = build_text_report(image_dir, (w, h), results, summary,
-                                   temporal_data=temporal_data)
+                                   temporal_data=temporal_data,
+                                   depth_correlation=depth_correlation)
 
     if args.output:
         with open(args.output, "w") as f:
