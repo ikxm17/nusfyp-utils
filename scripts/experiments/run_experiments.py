@@ -108,10 +108,18 @@ def build_command(experiment: dict) -> list[str]:
         cmd += ["--viewer.quit-on-train-completion", "True"]
 
     for key, value in experiment.get("extra_args", {}).items():
-        cmd += [f"--{key}", str(value)]
+        cmd.append(f"--{key}")
+        if isinstance(value, (list, tuple)):
+            cmd.extend(str(v) for v in value)
+        else:
+            cmd.append(str(value))
 
     for key, value in experiment.get("method_args", {}).items():
-        cmd += [f"--{key}", str(value)]
+        cmd.append(f"--{key}")
+        if isinstance(value, (list, tuple)):
+            cmd.extend(str(v) for v in value)
+        else:
+            cmd.append(str(value))
 
     return cmd
 
