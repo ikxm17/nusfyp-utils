@@ -29,11 +29,13 @@ apptainer exec --nv \
         ${EXTRA_ARGS:-}
 
 # Cleanup: remove all but the latest checkpoint per run to save scratch space
-echo "==> Cleaning up old checkpoints..."
-find "$OUTPUTS" -name "*.ckpt" -path "*/nerfstudio_models/*" | while read ckpt; do
-    dir=$(dirname "$ckpt")
-    latest=$(ls -1 "$dir"/*.ckpt | sort | tail -1)
-    [ "$ckpt" != "$latest" ] && rm -v "$ckpt"
-done
+# Disabled for diagnostic purposes — keep all checkpoints for post-hoc analysis
+# To re-enable, uncomment the find loop below.
+# echo "==> Cleaning up old checkpoints..."
+# find "$OUTPUTS" -name "*.ckpt" -path "*/nerfstudio_models/*" | while read ckpt; do
+#     dir=$(dirname "$ckpt")
+#     latest=$(ls -1 "$dir"/*.ckpt | sort | tail -1)
+#     [ "$ckpt" != "$latest" ] && rm -v "$ckpt"
+# done
 
 echo "==> Job finished at $(date)"
