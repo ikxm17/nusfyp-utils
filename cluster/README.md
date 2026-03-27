@@ -11,8 +11,10 @@ HPC deployment files for running nerfstudio training on the Vanda PBS cluster (N
 | `jobs/train_array.pbs` | PBS array job script — one experiment per sub-job |
 | `jobs/eval.pbs` | PBS job script for evaluation + checkpoint cleanup |
 | `jobs/render.pbs` | PBS job script for rendering experiments to video |
-| `scripts/submit.sh` | Convenience wrapper to submit train→eval→render dependency chain |
+| `jobs/analyze.pbs` | PBS job script for batch analysis (CPU-only, no GPU) |
+| `scripts/submit.sh` | Convenience wrapper to submit train→eval→render→analyze dependency chain |
 | `scripts/sync_results.sh` | **Runs locally** — rsync results + logs from cluster, rewrite config paths |
+| `scripts/sync_analysis.sh` | **Runs locally** — rsync only analysis artifacts (report.json + grids) |
 
 ## Workspace Layout
 
@@ -177,6 +179,7 @@ Python resolves source through the editable install pointers to `/opt/sea-splatf
 | `train.pbs` / `train_array.pbs` | 1x A40 | 36 | 128GB | 12h |
 | `eval.pbs` | 1x A40 | 2 | 16GB | 4h |
 | `render.pbs` | 1x A40 | 2 | 16GB | 4h |
+| `analyze.pbs` | none | 4 | 8GB | 1h |
 
 Queue limits: max walltime 12h, max 2x A40 GPUs per job, max 72 CPUs per node, max 4 concurrent jobs.
 

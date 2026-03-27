@@ -10,6 +10,7 @@
 #   ./cluster/scripts/submit.sh --dataset redsea_unprocessed  # Only experiments for this dataset
 #   ./cluster/scripts/submit.sh --paid                 # Use paid queue (consumes GPU-hour allocation)
 #   ./cluster/scripts/submit.sh --paid --walltime 2:00:00  # Paid queue + custom walltime
+#   ./cluster/scripts/submit.sh --render --analyze --batch-prefix tune20 --dataset torpedo  # Full chain with analysis
 #
 # Run from the fyp-utils/ directory.
 set -euo pipefail
@@ -28,6 +29,8 @@ JOBS_DIR="$SCRIPT_DIR/../jobs"
 TRAIN_ONLY=false
 PARALLEL=false
 RENDER=false
+ANALYZE=false
+BATCH_PREFIX=""
 PAID=false
 EXTRA_ARGS=""
 QSUB_OPTS=""
@@ -45,6 +48,14 @@ while [[ $# -gt 0 ]]; do
         --parallel)
             PARALLEL=true
             shift
+            ;;
+        --analyze)
+            ANALYZE=true
+            shift
+            ;;
+        --batch-prefix)
+            BATCH_PREFIX="$2"
+            shift 2
             ;;
         --paid)
             PAID=true
@@ -138,4 +149,31 @@ if [ "$RENDER" = true ]; then
         RENDER_JOB=$(qsub $QSUB_OPTS -W depend=afterok:"$EVAL_JOB" "$JOBS_DIR/render.pbs")
     fi
     echo "Render job submitted: $RENDER_JOB (depends on $EVAL_JOB)"
+fi
+
+if [ "$ANALYZE" = true ]; then
+    # Validate: --analyze requires --render (analysis depends on render output)
+    if [ "$RENDER" = false ]; then
+        echo "Error: --analyze requires --render (analysis depends on render output)"
+        exit 1
+    fi
+    if [ -z "$BATCH_PREFIX" ]; then
+        echo "Error: --analyze requires --batch-prefix <prefix>"
+        exit 1
+    fi
+
+    # Extract --dataset value from EXTRA_ARGS
+    DATASET_FOR_ANALYZE=$(echo "$EXTRA_ARGS" | grep -oP '(?<=--dataset )\S+' || true)
+    if [ -z "$DATASET_FOR_ANALYZE" ]; then
+        echo "Error: --analyze requires --dataset in the arguments"
+        exit 1
+    fi
+
+    # Analyze is CPU-only — strip GPU queue if set, use default queue
+    ANALYZE_QSUB_OPTS=$(echo "$QSUB_OPTS" | sed 's/-q auto_free//' | sed 's/-q [^ ]*//')
+    ANALYZE_JOB=$(qsub $ANALYZE_QSUB_OPTS \
+        -W depend=afterok:"$RENDER_JOB" \
+        -v BATCH_PREFIX="$BATCH_PREFIX",DATASET="$DATASET_FOR_ANALYZE" \
+        "$JOBS_DIR/analyze.pbs")
+    echo "Analyze job submitted: $ANALYZE_JOB (depends on $RENDER_JOB)"
 fi
