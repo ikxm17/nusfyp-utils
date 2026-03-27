@@ -72,6 +72,11 @@ fi
 if [ "$INCLUDE_CHECKPOINTS" = false ]; then
     EXCLUDES+=(--exclude "*.ckpt")
 fi
+# Exclude render frame directories and temp concat filelists.
+# Frames stay on Vanda; only MP4 videos sync locally.
+EXCLUDES+=(--exclude "**/renders/dataset/*/*/")
+EXCLUDES+=(--exclude "**/renders/camera-path/*/*/*/")
+EXCLUDES+=(--exclude "_*_filelist.txt")
 
 # Scope source paths when --dataset is specified
 RSYNC_REMOTE_OUTPUTS="${REMOTE_OUTPUTS}"
