@@ -19,6 +19,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
 | `dataset_underwater.py` | Underwater dataset characterization (color cast, turbidity, depth-color correlation, temporal variance) |
 | `decompose_metrics.py` | Decompose SSIM (luminance/contrast/structure) and LPIPS (per-layer) from experiment renders |
+| `visualize_cameras.py` | Interactive 3D visualization of nerfstudio camera paths and training poses |
 
 ### Agent scripts (`agents/`)
 
@@ -45,6 +46,7 @@ read_config.py ──> read_tb.py              (TB reader uses reader for path r
 log_experiments.py ──> read_tb.py          (uses find_runs for run discovery)
 eval_experiments.py ──> read_tb.py         (uses resolve_runs for flexible path specs)
 change_config_path.py                       (standalone — used manually when moving between machines)
+visualize_cameras.py                        (standalone — interactive 3D camera visualization)
 
 read_tb.py ──> agents/analyze_batch.py     (batch analyzer calls TB comparison)
 compare_renders.py ──> agents/analyze_batch.py  (batch analyzer calls grid + extract)
@@ -974,6 +976,55 @@ python scripts/decompose_metrics.py <experiment_spec> --device cpu --outputs-dir
 - `torchmetrics` — LPIPS per-layer extraction (`_LPIPS` internal class)
 - `cv2` (OpenCV) — MP4 frame extraction, image loading
 - `read_config.py`, `eval_experiments.py` — path resolution
+
+---
+
+## visualize_cameras.py
+
+Interactive 3D visualization of nerfstudio camera paths and training camera poses. Overlays multiple camera sources in a plotly scatter plot with optional per-camera coordinate frames (X=red, Y=green, Z=blue). Useful for verifying camera path trajectories against the training set, inspecting camera distribution, and debugging camera coverage.
+
+### Usage
+
+```bash
+# Compare a camera path against training cameras
+python scripts/visualize_cameras.py \
+    --camera-path ../fyp-playground/datasets/saltpond/camera_paths/1.json \
+    --transforms ../fyp-playground/datasets/saltpond/saltpond_unprocessed/transforms.json
+
+# Show coordinate frames at each camera
+python scripts/visualize_cameras.py --transforms transforms.json --show-axes
+
+# Subsample dense paths and save to HTML
+python scripts/visualize_cameras.py --camera-path path.json --subsample 5 -o cameras.html
+
+# Multiple camera paths overlaid
+python scripts/visualize_cameras.py --camera-path path1.json --camera-path path2.json \
+    --transforms transforms.json
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--camera-path <json>` | Nerfstudio camera path JSON (repeatable for multiple paths) | none |
+| `--transforms <json>` | Nerfstudio transforms.json (repeatable for multiple datasets) | none |
+| `--show-axes` | Draw XYZ coordinate frames at each camera (X=red, Y=green, Z=blue) | off |
+| `--axis-scale <float>` | Coordinate frame arrow length | 3% of scene extent |
+| `--subsample <N>` | Show every Nth camera (useful for dense paths) | all |
+| `-o, --output <file>` | Save to file (.html interactive, .png static) | open in browser |
+
+### Output
+
+- **Default (no `-o`)**: Opens interactive 3D plot in browser (rotate, zoom, pan)
+- **`.html`**: Self-contained interactive HTML file
+- **`.png`**: Static 1920x1080 image
+
+Camera paths are shown as colored lines with dots; training cameras as scatter points. Keyframes from camera path JSONs are highlighted as diamonds. Each source gets a distinct color from the palette.
+
+### Dependencies
+
+- `plotly` — interactive 3D visualization
+- `numpy` — matrix operations
 
 ---
 
