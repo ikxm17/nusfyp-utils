@@ -6,6 +6,7 @@
 #
 # Usage:
 #   ./cluster/scripts/sync_results.sh                        # Sync metrics + configs only
+#   ./cluster/scripts/sync_results.sh --include-renders       # Also sync per-frame render PNGs
 #   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
 #   ./cluster/scripts/sync_results.sh --include-tb --tb-filter "tune18_*"  # Sync TB for matching experiments only
 #   ./cluster/scripts/sync_results.sh --dataset redsea_unprocessed        # Sync only this dataset's outputs
@@ -37,6 +38,7 @@ NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
 INCLUDE_TB=false
+INCLUDE_RENDERS=false
 TB_FILTER=""
 DATASET=""
 CLEANUP=false
@@ -45,6 +47,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --include-checkpoints) INCLUDE_CHECKPOINTS=true; shift ;;
         --include-tb) INCLUDE_TB=true; shift ;;
+        --include-renders) INCLUDE_RENDERS=true; shift ;;
         --tb-filter) TB_FILTER="$2"; shift 2 ;;
         --dataset) DATASET="$2"; shift 2 ;;
         --cleanup) CLEANUP=true; shift ;;
@@ -72,10 +75,12 @@ fi
 if [ "$INCLUDE_CHECKPOINTS" = false ]; then
     EXCLUDES+=(--exclude "*.ckpt")
 fi
-# Exclude render frame directories and temp concat filelists.
-# Frames stay on Vanda; only MP4 videos sync locally.
-EXCLUDES+=(--exclude "**/renders/dataset/*/*/")
-EXCLUDES+=(--exclude "**/renders/camera-path/*/*/*/")
+# Exclude render frame directories unless --include-renders is set.
+# Without the flag, only MP4 videos sync locally (frames stay on Vanda).
+if [ "$INCLUDE_RENDERS" = false ]; then
+    EXCLUDES+=(--exclude "**/renders/dataset/*/*/")
+    EXCLUDES+=(--exclude "**/renders/camera-path/*/*/*/")
+fi
 EXCLUDES+=(--exclude "_*_filelist.txt")
 
 # Scope source paths when --dataset is specified
@@ -89,6 +94,7 @@ fi
 echo "==> Syncing outputs from ${CLUSTER_REMOTE}:${RSYNC_REMOTE_OUTPUTS}"
 echo "    to ${RSYNC_LOCAL_OUTPUTS}"
 [ -n "$DATASET" ] && echo "    Dataset: ${DATASET}"
+echo "    Renders: $([ "$INCLUDE_RENDERS" = true ] && echo "included" || echo "excluded")"
 echo "    Checkpoints: $([ "$INCLUDE_CHECKPOINTS" = true ] && echo "included" || echo "excluded")"
 if [ "$INCLUDE_TB" = true ] && [ -n "$TB_FILTER" ]; then
     echo "    TensorBoard: included (filter: *-${TB_FILTER}*)"
