@@ -1,15 +1,13 @@
-"""Idea 009v00: Dataset-Informed Medium Initialization — Saltpond.
+"""Batch 2 — Loss Exploration: Unexplored attenuation pressure losses.
 
-Tests whether initializing β_D, β_B, and B_inf from dataset color statistics
-produces healthy decomposition when combined with early medium + GW from step 0.
+Tests three never-properly-tested loss mechanisms that provide direct gradient
+pressure on the attenuation model — the key missing piece in decomposition.
 
-Hypothesis: the degenerate attractor from 008v02 occurs because the frozen medium
-was near-identity (β_D≈[1.1,0.95,0.95], B_inf blue-biased). With physically-
-informed initialization, Gaussians learn through a realistic medium from step 0,
-placing the optimizer in the correct basin.
+NOTE: This batch runs IN PARALLEL with Batch 1 (009v00, already submitted).
+Uses --filter to scope the PBS array to only these experiments.
 
 Submit:
-  submit.sh --parallel --paid --render --analyze --batch-prefix 009v00 --dataset saltpond_unprocessed --walltime 02:00:00
+  submit.sh --parallel --paid --render --analyze --batch-prefix 009v01 --filter 009v01 --dataset saltpond_unprocessed --walltime 02:00:00
 """
 import os
 
@@ -20,62 +18,79 @@ DATASETS = {
     "saltpond_unprocessed": WORKSPACE_DIR + "/datasets/saltpond/saltpond_unprocessed",
 }
 
-# Shared base config
+# Shared base: early medium + dataset init + GW from step 0 + SAT=1.5
 _BASE = {
     "max-num-iterations": "30000",
     "steps-per-save": "5000",
     "pipeline.model.seathru-from-iter": "10000",
     "pipeline.model.dcp-loss-lambda": "0.10",
     "pipeline.model.color-activation": "linear",
-    # Early medium + GW from step 0 (validated in 008v02)
     "pipeline.model.use-early-medium": "True",
     "pipeline.model.early-medium-warmup-steps": "200",
     "pipeline.model.gw-loss-lambda": "0.50",
     "pipeline.model.gw-from-iter": "0",
-    # SAT=1.5 (saltpond campaign best, reduces GW×SAT conflict)
     "pipeline.model.sat-loss-lambda": "1.5",
 }
 
-# Saltpond dataset-informed initialization (from analysis.md)
-# R/G=0.078, B/G=0.849, DCP=0.0001, depth median=4.56m
+# Dataset-informed init for saltpond
 _SALTPOND_INIT = {
-    # β_D: red attenuates ~5x more than green (dampened from physical ratio)
     "pipeline.model.beta-d-init-r": "2.3",
     "pipeline.model.beta-d-init-g": "0.5",
     "pipeline.model.beta-d-init-b": "0.4",
-    # β_B: near-zero (DCP≈0, clear water)
     "pipeline.model.beta-b-init-r": "0.01",
     "pipeline.model.beta-b-init-g": "0.05",
     "pipeline.model.beta-b-init-b": "0.04",
-    # B_inf: green-dominant water (not blue-biased default)
     "pipeline.model.bg-init-r": "0.05",
     "pipeline.model.bg-init-g": "0.25",
     "pipeline.model.bg-init-b": "0.20",
 }
 
+# Keep 009v00 experiments so submit --filter 009v01 scopes correctly
 EXPERIMENT_TEMPLATES = [
+    # --- Batch 1 (already submitted, kept for config completeness) ---
     {
-        # Control: same as 008v02_gw0 but with SAT=1.5 fix
         "suffix": "009v00_ctrl",
-        "extra_args": {
-            **_BASE,
-        },
+        "extra_args": {**_BASE},
     },
     {
-        # Dataset-informed initialization (idea 009)
         "suffix": "009v00_dataset",
+        "extra_args": {**_BASE, **_SALTPOND_INIT},
+    },
+    {
+        "suffix": "009v00_gw030",
+        "extra_args": {**_BASE, **_SALTPOND_INIT, "pipeline.model.gw-loss-lambda": "0.30"},
+    },
+    # --- Batch 2: Loss exploration (direct attenuation pressure) ---
+    {
+        # gw_reverse_J alone (no binf_loss) — NEVER TESTED IN ISOLATION
+        # GW on J_restored = direct/attenuation → direct gradient to β_D
+        "suffix": "009v01_revJ",
         "extra_args": {
             **_BASE,
             **_SALTPOND_INIT,
+            "pipeline.model.gw-reverse-J": "True",
         },
     },
     {
-        # Dataset init + lower GW (test if better init reduces GW requirement)
-        "suffix": "009v00_gw030",
+        # rgb_sv_loss — NEVER TESTED AT ALL
+        # Constrains std(clean) ≈ std(direct) → attenuation preserves contrast
+        "suffix": "009v01_rgbsv",
         "extra_args": {
             **_BASE,
             **_SALTPOND_INIT,
-            "pipeline.model.gw-loss-lambda": "0.30",
+            "pipeline.model.use-rgb-sv-loss": "True",
+            "pipeline.model.rgb-sv-lambda": "0.01",
+        },
+    },
+    {
+        # Both: reverse_J + rgb_sv — combined attenuation pressure
+        "suffix": "009v01_atten",
+        "extra_args": {
+            **_BASE,
+            **_SALTPOND_INIT,
+            "pipeline.model.gw-reverse-J": "True",
+            "pipeline.model.use-rgb-sv-loss": "True",
+            "pipeline.model.rgb-sv-lambda": "0.01",
         },
     },
 ]
