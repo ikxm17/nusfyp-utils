@@ -1,12 +1,11 @@
-"""Batch 3 — 009v02: reverse_J refinement + backscatter activation.
+"""Batch 00 — 010v00: β_D Minimum Regularization Validation.
 
-Builds on the reverse_J breakthrough (009v01_revJ, gap=+3.13 dB):
-1. Longer training (50K) to test if gap tightens further
-2. revJ + rgb_sv at very low weight (0.001-0.002) for backscatter activation
-3. revJ + higher GW (0.70) to push color correction with the new gradient path
+Tests whether a softplus floor constraint on β_D prevents the degenerate
+attractor (attenuation collapse to identity). The CRITICAL test is 50K
+stability: revJ regressed from gap +3.13 to +10.10 at 50K without this fix.
 
 Submit:
-  submit.sh --paid --render --filter 009v02 --dataset saltpond_unprocessed --walltime 04:00:00
+  submit.sh --paid --render --analyze --parallel --filter 010v00 --dataset saltpond_unprocessed --walltime 02:00:00
 """
 import os
 
@@ -45,95 +44,51 @@ _SALTPOND_INIT = {
 }
 
 # revJ base: the breakthrough config from Batch 2
-_REVJ_BASE = {
+_REVJ = {
     **_BASE,
     **_SALTPOND_INIT,
     "pipeline.model.gw-reverse-J": "True",
 }
 
-# Keep previous batches for config completeness
+# β_D min reg config
+_BETA_D_REG = {
+    "pipeline.model.use-beta-d-min-reg": "True",
+    "pipeline.model.beta-d-min-reg-lambda": "0.1",
+    "pipeline.model.beta-d-min-r": "0.2",
+    "pipeline.model.beta-d-min-g": "0.1",
+    "pipeline.model.beta-d-min-b": "0.05",
+}
+
 EXPERIMENT_TEMPLATES = [
-    # --- Batch 1 (complete) ---
+    # --- 010v00: β_D Min Reg Validation ---
     {
-        "suffix": "009v00_ctrl",
-        "extra_args": {**_BASE},
+        # Control: revJ config on NEW code, toggle OFF
+        "suffix": "010v00_control",
+        "extra_args": {**_REVJ},
     },
     {
-        "suffix": "009v00_dataset",
-        "extra_args": {**_BASE, **_SALTPOND_INIT},
+        # Primary: revJ + β_D min reg at 30K
+        "suffix": "010v00_reg",
+        "extra_args": {**_REVJ, **_BETA_D_REG},
     },
     {
-        "suffix": "009v00_gw030",
-        "extra_args": {**_BASE, **_SALTPOND_INIT, "pipeline.model.gw-loss-lambda": "0.30"},
-    },
-    # --- Batch 2 (complete) ---
-    {
-        "suffix": "009v01_revJ",
+        # CRITICAL: 50K stability test — this is the key experiment
+        "suffix": "010v00_50k",
         "extra_args": {
-            **_BASE,
-            **_SALTPOND_INIT,
-            "pipeline.model.gw-reverse-J": "True",
-        },
-    },
-    {
-        "suffix": "009v01_rgbsv",
-        "extra_args": {
-            **_BASE,
-            **_SALTPOND_INIT,
-            "pipeline.model.use-rgb-sv-loss": "True",
-            "pipeline.model.rgb-sv-lambda": "0.01",
-        },
-    },
-    {
-        "suffix": "009v01_atten",
-        "extra_args": {
-            **_BASE,
-            **_SALTPOND_INIT,
-            "pipeline.model.gw-reverse-J": "True",
-            "pipeline.model.use-rgb-sv-loss": "True",
-            "pipeline.model.rgb-sv-lambda": "0.01",
-        },
-    },
-    # --- Batch 3 (009v02): reverse_J refinement ---
-    {
-        # Extended training: 50K iterations to test gap tightening
-        # revJ converged at 30K but rgb_sat still DIVERGING
-        "suffix": "009v02_50k",
-        "extra_args": {
-            **_REVJ_BASE,
+            **_REVJ,
+            **_BETA_D_REG,
             "max-num-iterations": "50000",
             "steps-per-save": "10000",
         },
     },
     {
-        # revJ + rgb_sv at very low weight (0.002)
-        # Goal: activate backscatter without subsuming GW
-        # At 0.01 (Batch 2), GW collapsed to 0.0006 — need 5x lower
-        "suffix": "009v02_sv002",
+        # Backscatter probe: revJ + reg + rgb_sv at λ=0.005
+        "suffix": "010v00_sv005",
         "extra_args": {
-            **_REVJ_BASE,
+            **_REVJ,
+            **_BETA_D_REG,
             "pipeline.model.use-rgb-sv-loss": "True",
-            "pipeline.model.rgb-sv-lambda": "0.002",
-        },
-    },
-    {
-        # revJ + rgb_sv at even lower weight (0.001)
-        # Conservative bracket: if 0.002 still overcorrects, 0.001 is the fallback
-        "suffix": "009v02_sv001",
-        "extra_args": {
-            **_REVJ_BASE,
-            "pipeline.model.use-rgb-sv-loss": "True",
-            "pipeline.model.rgb-sv-lambda": "0.001",
-        },
-    },
-    {
-        # revJ + higher GW (0.70)
-        # revJ R/G=0.510 (target >0.7) — more GW pressure with the reverse_J
-        # gradient path may push color correction further
-        "suffix": "009v02_gw070",
-        "extra_args": {
-            **_REVJ_BASE,
-            "pipeline.model.gw-loss-lambda": "0.70",
+            "pipeline.model.rgb-sv-lambda": "0.005",
         },
     },
 ]
