@@ -23,8 +23,9 @@ if [ -z "${BATCH_PREFIX:-}" ] || [ -z "${DATASET:-}" ]; then
     exit 1
 fi
 
-# Analysis output directory
-ANALYSIS_DIR="$SCRATCH/analysis/${BATCH_PREFIX}"
+# Analysis output directory — keyed by batch_prefix AND dataset to avoid
+# multi-scene overwrites when the same batch prefix is used across datasets
+ANALYSIS_DIR="$SCRATCH/analysis/${BATCH_PREFIX}_${DATASET}"
 mkdir -p "$ANALYSIS_DIR"
 
 # Resolve dataset-analysis path if it exists

@@ -9,6 +9,7 @@
 #
 # Usage:
 #   ./cluster/scripts/sync_analysis.sh <batch_prefix>
+#   ./cluster/scripts/sync_analysis.sh <batch_prefix> --dataset saltpond_unprocessed
 #   ./cluster/scripts/sync_analysis.sh <batch_prefix> --local-dir /tmp/my-analysis
 #
 # Prerequisites:
@@ -20,7 +21,7 @@ CLUSTER_HOST="vanda.nus.edu.sg"
 CLUSTER_REMOTE="${CLUSTER_USER}@${CLUSTER_HOST}"
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 <batch_prefix> [--local-dir <path>]"
+    echo "Usage: $0 <batch_prefix> [--dataset <name>] [--local-dir <path>]"
     exit 1
 fi
 
@@ -28,15 +29,23 @@ BATCH_PREFIX="$1"
 shift
 
 LOCAL_DIR="/tmp/batch-analysis"
+DATASET=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --local-dir) LOCAL_DIR="$2"; shift 2 ;;
+        --dataset) DATASET="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; exit 1 ;;
     esac
 done
 
-REMOTE_ANALYSIS="/scratch/${CLUSTER_USER}/fyp-playground/analysis/${BATCH_PREFIX}/"
+# Build remote path: analysis/{prefix}_{dataset} when dataset given, else {prefix}
+if [ -n "$DATASET" ]; then
+    REMOTE_DIR="${BATCH_PREFIX}_${DATASET}"
+else
+    REMOTE_DIR="${BATCH_PREFIX}"
+fi
+REMOTE_ANALYSIS="/scratch/${CLUSTER_USER}/fyp-playground/analysis/${REMOTE_DIR}/"
 
 # Verify remote directory exists before syncing
 if ! ssh "${CLUSTER_REMOTE}" "test -d ${REMOTE_ANALYSIS}"; then
@@ -48,6 +57,7 @@ fi
 echo "==> Syncing analysis artifacts from ${CLUSTER_REMOTE}:${REMOTE_ANALYSIS}"
 echo "    to ${LOCAL_DIR}/"
 echo "    Batch prefix: ${BATCH_PREFIX}"
+[ -n "$DATASET" ] && echo "    Dataset: ${DATASET}"
 
 mkdir -p "$LOCAL_DIR"
 
