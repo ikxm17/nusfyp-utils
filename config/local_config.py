@@ -1,11 +1,12 @@
-"""Batch 00 — 010v00: β_D Minimum Regularization Validation.
+"""Dynamics campaign dyn03: GW anneal + midpoint sweep on torpedo.
 
-Tests whether a softplus floor constraint on β_D prevents the degenerate
-attractor (attenuation collapse to identity). The CRITICAL test is 50K
-stability: revJ regressed from gap +3.13 to +10.10 at 50K without this fix.
+Test whether GW annealing (high start → low end) can activate the medium model
+(backscatter, structured attenuation) during Phase 2 while preventing the
+purple/magenta overcorrection artifact that occurs with constant GW=0.50.
 
-Submit:
-  submit.sh --paid --render --analyze --parallel --filter 010v00 --dataset saltpond_unprocessed --walltime 02:00:00
+Also tests constant GW=0.35 as a midpoint between the dead ends of 0.25 and 0.50.
+
+  submit.sh --paid --render --dataset torpedo_unprocessed --walltime 02:30:00
 """
 import os
 
@@ -14,81 +15,61 @@ WORKSPACE_DIR = f"/scratch/{USERID}/fyp-playground"
 
 DATASETS = {
     "saltpond_unprocessed": WORKSPACE_DIR + "/datasets/saltpond/saltpond_unprocessed",
+    "torpedo_unprocessed": WORKSPACE_DIR + "/datasets/torpedo/torpedo_unprocessed",
 }
 
-# Shared base: early medium + dataset init + GW from step 0 + SAT=1.5
+# Base config: dyn01_tor_dcp005 (DCP=0.05, SAT=1.5, seathru@10K, 30K iters)
 _BASE = {
-    "max-num-iterations": "30000",
     "steps-per-save": "5000",
+    "max-num-iterations": "30000",
     "pipeline.model.seathru-from-iter": "10000",
-    "pipeline.model.dcp-loss-lambda": "0.10",
-    "pipeline.model.color-activation": "linear",
-    "pipeline.model.use-early-medium": "True",
-    "pipeline.model.early-medium-warmup-steps": "200",
-    "pipeline.model.gw-loss-lambda": "0.50",
-    "pipeline.model.gw-from-iter": "0",
+    "pipeline.model.gw-from-iter": "10000",
     "pipeline.model.sat-loss-lambda": "1.5",
-}
-
-# Dataset-informed init for saltpond
-_SALTPOND_INIT = {
-    "pipeline.model.beta-d-init-r": "2.3",
-    "pipeline.model.beta-d-init-g": "0.5",
-    "pipeline.model.beta-d-init-b": "0.4",
-    "pipeline.model.beta-b-init-r": "0.01",
-    "pipeline.model.beta-b-init-g": "0.05",
-    "pipeline.model.beta-b-init-b": "0.04",
-    "pipeline.model.bg-init-r": "0.05",
-    "pipeline.model.bg-init-g": "0.25",
-    "pipeline.model.bg-init-b": "0.20",
-}
-
-# revJ base: the breakthrough config from Batch 2
-_REVJ = {
-    **_BASE,
-    **_SALTPOND_INIT,
-    "pipeline.model.gw-reverse-J": "True",
-}
-
-# β_D min reg config
-_BETA_D_REG = {
-    "pipeline.model.use-beta-d-min-reg": "True",
-    "pipeline.model.beta-d-min-reg-lambda": "0.1",
-    "pipeline.model.beta-d-min-r": "0.2",
-    "pipeline.model.beta-d-min-g": "0.1",
-    "pipeline.model.beta-d-min-b": "0.05",
+    "pipeline.model.dcp-loss-lambda": "0.05",
 }
 
 EXPERIMENT_TEMPLATES = [
-    # --- 010v00: β_D Min Reg Validation ---
+    # --- dyn03_tor: GW anneal + midpoint sweep ---
+
+    # 1. Constant GW=0.35 — untested midpoint between 0.25 (identity) and 0.50 (full + artifact)
     {
-        # Control: revJ config on NEW code, toggle OFF
-        "suffix": "010v00_control",
-        "extra_args": {**_REVJ},
+        "suffix": "dyn03_tor_gw035",
+        "extra_args": {**_BASE, "pipeline.model.gw-loss-lambda": "0.35"},
     },
+
+    # 2. GW anneal 0.50→0.20 — high start activates medium, moderate end preserves some correction
     {
-        # Primary: revJ + β_D min reg at 30K
-        "suffix": "010v00_reg",
-        "extra_args": {**_REVJ, **_BETA_D_REG},
-    },
-    {
-        # CRITICAL: 50K stability test — this is the key experiment
-        "suffix": "010v00_50k",
+        "suffix": "dyn03_tor_anneal_high",
         "extra_args": {
-            **_REVJ,
-            **_BETA_D_REG,
-            "max-num-iterations": "50000",
-            "steps-per-save": "10000",
+            **_BASE,
+            "pipeline.model.use-gw-anneal": "True",
+            "pipeline.model.gw-anneal-start": "0.50",
+            "pipeline.model.gw-anneal-end": "0.20",
+            "pipeline.model.gw-anneal-steps": "10000",
         },
     },
+
+    # 3. GW anneal 0.50→0.10 — aggressive decay to test if backscatter persists at low final GW
     {
-        # Backscatter probe: revJ + reg + rgb_sv at λ=0.005
-        "suffix": "010v00_sv005",
+        "suffix": "dyn03_tor_anneal_low",
         "extra_args": {
-            **_REVJ,
-            **_BETA_D_REG,
-            "pipeline.model.use-rgb-sv-loss": "True",
-            "pipeline.model.rgb-sv-lambda": "0.005",
+            **_BASE,
+            "pipeline.model.use-gw-anneal": "True",
+            "pipeline.model.gw-anneal-start": "0.50",
+            "pipeline.model.gw-anneal-end": "0.10",
+            "pipeline.model.gw-anneal-steps": "10000",
+        },
+    },
+
+    # 4. GW anneal 0.30→0.05 (default params) — transfer test from torpedo campaign validation
+    {
+        "suffix": "dyn03_tor_anneal_ref",
+        "extra_args": {
+            **_BASE,
+            "pipeline.model.use-gw-anneal": "True",
+            "pipeline.model.gw-anneal-start": "0.30",
+            "pipeline.model.gw-anneal-end": "0.05",
+            "pipeline.model.gw-anneal-steps": "10000",
         },
     },
 ]
