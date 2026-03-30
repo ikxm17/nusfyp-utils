@@ -152,6 +152,12 @@ def cmd_all(args):
         print("Error: No experiments found with TensorBoard data.", file=sys.stderr)
         sys.exit(1)
 
+    if args.label:
+        labels = args.label.split(",")
+        for i, exp in enumerate(experiments):
+            if i < len(labels):
+                exp.label = labels[i].strip()
+
     formats = _parse_formats(args.format)
     output_dir = Path(args.output_dir)
 
