@@ -19,6 +19,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `dataset_depth.py` | Depth range statistics from COLMAP sparse reconstructions |
 | `dataset_underwater.py` | Underwater dataset characterization (color cast, turbidity, depth-color correlation, temporal variance) |
 | `decompose_metrics.py` | Decompose SSIM (luminance/contrast/structure) and LPIPS (per-layer) from experiment renders |
+| `paper_figures.py` | Generate publication-quality figures from TensorBoard training data (9 figure types) |
 
 ### Agent scripts (`agents/`)
 
@@ -1064,3 +1065,78 @@ Prints progress to stderr and the report path to stdout (last line).
 - `compare_renders.py` (subprocess: frame extraction and grid composition)
 - `dataset_underwater.py` (subprocess: color analysis on rendered frames)
 - Python standard library only (no direct third-party imports)
+
+---
+
+## paper_figures.py
+
+Generate publication-quality figures from TensorBoard training data. Designed for paper preparation — produces consistent, reproducible figures with phase annotations, peak markers, and cross-experiment comparisons.
+
+### Purpose
+
+Fills the visualization gap between raw TensorBoard data and paper-ready figures. Wraps `read_tb.py` for data loading, adds matplotlib styling, and provides 9 figure types covering the full analysis needs of the underwater decomposition paper.
+
+### Usage
+
+```bash
+# Single experiment — all standard figures
+python scripts/paper_figures.py all <experiment> --outputs-dir <path>
+
+# Specific figure type
+python scripts/paper_figures.py psnr <experiment>
+python scripts/paper_figures.py medium-params <experiment>
+python scripts/paper_figures.py loss-components <experiment> --budget
+
+# Cross-experiment comparison
+python scripts/paper_figures.py cross-compare <exp1> <exp2> ... --metric psnr
+python scripts/paper_figures.py psnr-gap <exp1> <exp2> ...
+python scripts/paper_figures.py early-stopping <exp1> <exp2> ...
+```
+
+### Figure types
+
+| Subcommand | Mode | What it shows |
+|------------|------|---------------|
+| `psnr` | Single | PSNR trajectory with EMA smoothing, phase boundaries, peak + decline |
+| `medium-params` | Single | β_D + B_inf per channel (2-panel, plausibility band) |
+| `loss-components` | Single | Per-loss curves; `--budget` for fraction-of-total view |
+| `gaussian-count` | Single | Gaussian count with saturation point |
+| `phase2-spike` | Single | Zoomed loss at medium onset (spike ratio, recovery) |
+| `medium-activity` | Single | medium_contribution + attenuation/backscatter magnitude |
+| `cross-compare` | Multi | Same metric overlaid for N experiments |
+| `psnr-gap` | Multi | Bar chart: PSNR vs clean_PSNR gap (decomposition proxy) |
+| `early-stopping` | Multi | Scatter of peak step vs peak PSNR (decline colormap) |
+| `all` | Single | Generates all single-experiment figures + loss budget |
+
+### Arguments
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--outputs-dir` | auto-detect | Base outputs directory |
+| `--output-dir` | `../fyp-playground/paper/figures/` | Figure output directory |
+| `--format` | `both` | Output format: `pdf`, `png`, or `both` |
+| `--smooth` | `100` | EMA smoothing window (samples); `0` to disable |
+| `--width` | `single` | Figure width: `single` (3.5") or `double` (7.0") |
+| `--no-phase` | off | Suppress phase boundary annotations |
+| `--label` | auto | Custom labels (comma-separated) |
+| `--metric` | `psnr` | For `cross-compare`: which metric to overlay |
+| `--budget` | off | For `loss-components`: show as fraction of total |
+
+### Execution model
+
+Designed to run on Vanda (where TB data lives) with artifacts synced back:
+```bash
+# On Vanda
+python scripts/paper_figures.py all <experiment> \
+    --outputs-dir /scratch/$USER/fyp-playground/outputs \
+    --output-dir /scratch/$USER/fyp-playground/paper/figures/
+
+# Sync back
+scp -r vanda:/scratch/$USER/fyp-playground/paper/figures/ fyp-playground/paper/figures/
+```
+
+### Dependencies
+
+- `matplotlib` — figure rendering
+- `numpy` — data manipulation
+- `read_tb.py`, `eval_experiments.py`, `read_config.py` — data loading and path resolution
