@@ -234,6 +234,6 @@ def get_short_label(experiment: ExperimentData) -> str:
             prefix = full + "-"
             if name.startswith(prefix):
                 variant = name[len(prefix):]
-                return f"{short}/{variant}"
+                return f"{short}_{variant}"
         return name
     return experiment.label
