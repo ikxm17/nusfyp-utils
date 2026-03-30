@@ -67,6 +67,10 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
             fontsize=FONT_SIZE_LEGEND, color="#666666",
         )
 
+    # Add top margin so phase labels clear the data peak
+    ylim = ax.get_ylim()
+    ax.set_ylim(ylim[0], ylim[1] + (ylim[1] - ylim[0]) * 0.08)
+
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)
         add_phase_boundaries(ax, experiment.boundaries)

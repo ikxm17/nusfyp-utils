@@ -74,8 +74,7 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
-    legend_loc = "lower right" if budget else "lower left"
-    apply_legend(ax, loc=legend_loc, ncol=2)
+    apply_legend(ax, outside=True, ncol=4)
 
     short = get_short_label(experiment)
     mode = "budget" if budget else "absolute"

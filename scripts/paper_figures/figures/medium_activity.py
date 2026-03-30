@@ -72,7 +72,7 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_xlabel("Training Step")
     ax.set_ylabel("Magnitude")
     ax.xaxis.set_major_formatter(step_formatter())
-    apply_legend(ax, loc="upper right")
+    apply_legend(ax, outside=True, ncol=3)
 
     short = get_short_label(experiment)
     ax.set_title(f"Medium Activity — {short}")

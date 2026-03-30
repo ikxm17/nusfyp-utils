@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
+from matplotlib.transforms import blended_transform_factory
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -161,13 +162,15 @@ def add_phase_boundaries(ax, boundaries, label=True):
                        alpha=0.7, zorder=1)
 
     if label:
-        ylim = ax.get_ylim()
-        label_y = ylim[1] - (ylim[1] - ylim[0]) * 0.05
+        trans = blended_transform_factory(ax.transData, ax.transAxes)
         for name, start, end in boundaries:
             mid = (start + end) / 2
             phase_label = PHASE_LABELS.get(name, name)
-            ax.text(mid, label_y, phase_label, ha="center", va="top",
-                    fontsize=FONT_SIZE_LEGEND, color="#666666", style="italic")
+            ax.text(mid, 0.97, phase_label, ha="center", va="top",
+                    fontsize=FONT_SIZE_LEGEND, color="#666666", style="italic",
+                    transform=trans,
+                    bbox=dict(facecolor="white", edgecolor="none",
+                              alpha=0.8, pad=1))
 
 
 def add_phase_shading(ax, boundaries):
