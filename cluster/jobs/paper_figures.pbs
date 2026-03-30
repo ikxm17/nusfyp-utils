@@ -1,0 +1,46 @@
+#!/bin/bash
+#PBS -N paper-figs
+#PBS -l select=1:ncpus=4:mem=8gb
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#PBS -o /scratch/e0908336/fyp-playground/logs/paper_figures.log
+
+# Generate paper figures from TensorBoard data.
+# CPU-only — no GPU needed.
+# Required PBS variables (passed via qsub -v):
+#   FIGURE      — figure subcommand (e.g., "all", "psnr", "cross-compare")
+#   EXPERIMENTS — space-separated experiment path specs
+# Optional:
+#   EXTRA_ARGS  — additional paper_figures.py arguments
+
+cd "$PBS_O_WORKDIR" || exit 1
+
+CONTAINER=$HOME/workspace/fyp/containers/nerfstudio.sif
+FYP_UTILS=$HOME/workspace/fyp/fyp-utils
+SCRATCH=/scratch/$USER/fyp-playground
+
+echo "==> Job $PBS_JOBID started at $(date)"
+echo "==> Node: $(hostname)"
+echo "==> Figure: ${FIGURE:-UNSET}"
+echo "==> Experiments: ${EXPERIMENTS:-UNSET}"
+
+if [ -z "${FIGURE:-}" ] || [ -z "${EXPERIMENTS:-}" ]; then
+    echo "ERROR: FIGURE and EXPERIMENTS must be set via -v"
+    exit 1
+fi
+
+# No --nv: figure generation is CPU-only
+apptainer exec \
+    --bind $HOME/workspace/fyp/sea-splatfacto:/opt/sea-splatfacto \
+    --bind $HOME/workspace/fyp/nerfstudio:/opt/nerfstudio \
+    --bind /scratch/$USER:/scratch/$USER \
+    "$CONTAINER" \
+    python "$FYP_UTILS/scripts/paper_figures.py" \
+        "$FIGURE" \
+        $EXPERIMENTS \
+        --outputs-dir "$SCRATCH/outputs" \
+        --output-dir "$SCRATCH/paper/figures" \
+        ${EXTRA_ARGS:-}
+
+echo "==> Job finished at $(date)"
+echo "==> Figures output: $SCRATCH/paper/figures"
