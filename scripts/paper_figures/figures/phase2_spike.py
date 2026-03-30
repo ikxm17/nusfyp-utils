@@ -10,7 +10,7 @@ import numpy as np
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
     FONT_SIZE_LEGEND,
-    save_figure, step_formatter,
+    apply_legend, save_figure, step_formatter,
 )
 from paper_figures.data import ExperimentData, get_series, get_short_label
 
@@ -105,7 +105,7 @@ def plot(experiment, output_dir, smooth_window=0, formats=("pdf", "png"),
     ax.set_xlabel("Training Step")
     ax.set_ylabel("Total Loss")
     ax.xaxis.set_major_formatter(step_formatter())
-    ax.legend(loc="upper right")
+    apply_legend(ax, loc="upper right")
 
     short = get_short_label(experiment)
     ax.set_title(f"Phase 2 Spike — {short}")

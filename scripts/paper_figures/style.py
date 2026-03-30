@@ -91,9 +91,44 @@ def apply_style():
         "grid.linewidth": 0.5,
         "axes.spines.top": False,
         "axes.spines.right": False,
-        "legend.frameon": False,
+        "legend.frameon": True,
         "lines.linewidth": LINE_WIDTH,
     })
+
+
+def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
+    """Apply standardized legend to an axes.
+
+    Args:
+        ax: matplotlib axes
+        loc: legend location (default: "best")
+        ncol: number of columns
+        outside: if True, place legend below the axes
+        **kwargs: passed through to ax.legend()
+
+    Returns:
+        Legend object
+    """
+    legend_kw = dict(
+        fontsize=FONT_SIZE_LEGEND,
+        frameon=True,
+        facecolor="white",
+        framealpha=0.85,
+        edgecolor="none",
+        borderpad=0.4,
+        handletextpad=0.5,
+        columnspacing=1.0,
+    )
+    if outside:
+        legend_kw.update(
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.12),
+            ncol=ncol,
+        )
+    else:
+        legend_kw.update(loc=loc, ncol=ncol)
+    legend_kw.update(kwargs)
+    return ax.legend(**legend_kw)
 
 
 def step_formatter():

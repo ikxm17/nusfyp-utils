@@ -11,7 +11,7 @@ import numpy as np
 from paper_figures.style import (
     FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
     FONT_SIZE_LEGEND, FONT_SIZE_TICK,
-    save_figure,
+    apply_legend, save_figure,
 )
 from paper_figures.data import ExperimentData, get_short_label
 
@@ -75,7 +75,7 @@ def plot(experiments, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_ylabel("PSNR (dB)")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK)
-    ax.legend(loc="upper right")
+    apply_legend(ax, loc="upper right")
     ax.set_title("PSNR-to-Clean Gap (Decomposition Activity)")
 
     fig.tight_layout()

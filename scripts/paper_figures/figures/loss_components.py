@@ -12,7 +12,8 @@ import numpy as np
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
     LOSS_COLORS, FONT_SIZE_LEGEND,
-    add_phase_boundaries, add_phase_shading, save_figure, step_formatter,
+    add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
+    step_formatter,
 )
 from paper_figures.data import (
     ExperimentData, get_series, ema_smooth, get_short_label, LOSS_TAGS,
@@ -73,7 +74,8 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
-    ax.legend(loc="upper right", ncol=2)
+    legend_loc = "lower right" if budget else "lower left"
+    apply_legend(ax, loc=legend_loc, ncol=2)
 
     short = get_short_label(experiment)
     mode = "budget" if budget else "absolute"

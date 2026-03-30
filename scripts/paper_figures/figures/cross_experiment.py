@@ -11,7 +11,8 @@ import numpy as np
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
     EXPERIMENT_PALETTE, FONT_SIZE_LEGEND,
-    add_phase_boundaries, add_phase_shading, save_figure, step_formatter,
+    add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
+    step_formatter,
 )
 from paper_figures.data import (
     ExperimentData, get_series, ema_smooth, get_short_label,
@@ -81,10 +82,9 @@ def plot(experiments, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     # Legend below plot if many experiments
     if plotted > 4:
-        ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.15),
-                  ncol=min(plotted, 4))
+        apply_legend(ax, ncol=min(plotted, 4), outside=True)
     else:
-        ax.legend(loc="best")
+        apply_legend(ax, loc="lower right")
 
     ax.set_title(f"{ylabel} — Cross-Experiment Comparison")
 
