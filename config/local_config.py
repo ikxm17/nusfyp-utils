@@ -1,14 +1,19 @@
-"""Replication campaign repl04: RS beta_D over-activation fix via existing config levers.
+"""Replication campaign repl05: Joint β_D + B_inf constraint via sigmoid + binf_loss.
 
-Three experiments addressing beta_D over-activation (21.64 vs 5.0 ceiling) using the
-combined config (gw_reverse_J + gauss_cap) from repl03 as the base:
-  1. sigmoid: attenuation_do_sigmoid + backscatter_do_sigmoid (scale=5.0) caps beta to [0, 5.0]
-  2. sigmoid_s3: same but scale=3.0 for tighter physical bounds
-  3. ampclamp: use_amplification_clamp=True, max_amplification=3.0 (caps beta_D*z product)
+Hypothesis: repl04 sigmoid failed because bounding β_D pushed the optimizer to inflate
+B_inf to [0.925, 0.991, 0.998] (water balloon effect). If we simultaneously anchor B_inf
+via binf_loss (atmospheric light estimate from clean render), the degenerate basin is
+eliminated and the optimizer must find the physical solution.
+
+Three experiments:
+  1. sig_binf: sigmoid@5.0 + binf_loss lambda=1.0 (full joint constraint)
+  2. sig_binf01: sigmoid@5.0 + binf_loss lambda=0.1 (softer B_inf anchor)
+  3. binf01: NO sigmoid + binf_loss lambda=0.1 (control: does B_inf anchoring alone
+     prevent β_D over-activation by closing the escape route?)
 
 Base: repl03_rs_combined (gw_reverse_J, gauss_cap, medium_update_interval=50, dwr_lambda=2.0).
 
-  submit.sh --paid --render --analyze --batch-prefix repl04 \\
+  submit.sh --paid --render --analyze --batch-prefix repl05 \\
     --dataset redsea_unprocessed --walltime 02:00:00
 """
 import os
@@ -62,52 +67,47 @@ _RS_COMBINED_BASE = {
 }
 
 # ---------------------------------------------------------------------------
-# Experiment 1: Sigmoid bounds on beta_D and beta_B (scale=5.0)
-# Caps both to [0, 5.0] — the physical upper bound for seawater.
-# This is the primary test: does bounding beta_D prevent over-activation
-# while preserving the gw_reverse_J decomposition mechanism?
+# Experiment 1: sigmoid@5.0 + binf_loss lambda=1.0 (full joint constraint)
+# Sigmoid caps β_D at 5.0 (physical ceiling), binf_loss anchors B_inf to
+# atmospheric light estimated from clean render. Both escape routes blocked.
 # ---------------------------------------------------------------------------
-_RS_SIGMOID = {
+_RS_SIG_BINF = {
     **_RS_COMBINED_BASE,
     "pipeline.model.attenuation-do-sigmoid": "True",
     "pipeline.model.backscatter-do-sigmoid": "True",
-    # scale stays at default 5.0 for both
+    "pipeline.model.use-binf-loss": "True",
+    "pipeline.model.binf-loss-lambda": "1.0",
 }
 
 # ---------------------------------------------------------------------------
-# Experiment 2: Sigmoid with tighter scale=3.0
-# If 5.0 is too loose, 3.0 provides tighter physical bounds.
-# RedSea dataset analysis: 25m effective depth range (p5-p95).
-# At beta_D=3.0 and z_max~34m (p95), max attenuation = exp(-3.0*34) ~ 0
-# which is effectively complete absorption. Scale=3.0 should still allow
-# full attenuation range while preventing the 21.64 over-activation.
+# Experiment 2: sigmoid@5.0 + binf_loss lambda=0.1 (softer B_inf anchor)
+# Same sigmoid bound but gentler B_inf constraint. If lambda=1.0 causes
+# instability (previous testing showed 24x spike), this may be more stable.
 # ---------------------------------------------------------------------------
-_RS_SIGMOID_S3 = {
+_RS_SIG_BINF01 = {
     **_RS_COMBINED_BASE,
     "pipeline.model.attenuation-do-sigmoid": "True",
     "pipeline.model.backscatter-do-sigmoid": "True",
-    "pipeline.model.attenuation-scale": "3.0",
-    "pipeline.model.backscatter-scale": "3.0",
+    "pipeline.model.use-binf-loss": "True",
+    "pipeline.model.binf-loss-lambda": "0.1",
 }
 
 # ---------------------------------------------------------------------------
-# Experiment 3: Amplification clamp (caps beta_D * z product)
-# Different mechanism: limits the total attenuation effect rather than
-# bounding beta_D itself. max_amplification=3.0 means 1/T(z) <= 3,
-# so beta_d*z <= log(3) ~ 1.099.
-# This preserves the unconstrained beta_D parameterization but limits
-# how much clean can diverge from direct signal.
+# Experiment 3: binf_loss only, no sigmoid (control experiment)
+# Tests whether anchoring B_inf alone prevents β_D over-activation.
+# If the optimizer can't inflate B_inf as a pressure valve, does β_D
+# self-regulate? Or does it still over-activate to 21.64?
 # ---------------------------------------------------------------------------
-_RS_AMPCLAMP = {
+_RS_BINF01 = {
     **_RS_COMBINED_BASE,
-    "pipeline.model.use-amplification-clamp": "True",
-    "pipeline.model.max-amplification": "3.0",
+    "pipeline.model.use-binf-loss": "True",
+    "pipeline.model.binf-loss-lambda": "0.1",
 }
 
 EXPERIMENT_TEMPLATES = [
-    {"suffix": "repl04_rs_sigmoid",    "extra_args": _RS_SIGMOID},
-    {"suffix": "repl04_rs_sigmoid_s3", "extra_args": _RS_SIGMOID_S3},
-    {"suffix": "repl04_rs_ampclamp",   "extra_args": _RS_AMPCLAMP},
+    {"suffix": "repl05_rs_sig_binf",   "extra_args": _RS_SIG_BINF},
+    {"suffix": "repl05_rs_sig_binf01", "extra_args": _RS_SIG_BINF01},
+    {"suffix": "repl05_rs_binf01",     "extra_args": _RS_BINF01},
 ]
 
 VIS = "tensorboard"
