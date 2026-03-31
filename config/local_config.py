@@ -1,20 +1,20 @@
-"""Replication campaign repl05: Joint β_D + B_inf constraint via sigmoid + binf_loss.
+"""Replication campaign repl06: Unexplored config levers for SP and RS.
 
-Hypothesis: repl04 sigmoid failed because bounding β_D pushed the optimizer to inflate
-B_inf to [0.925, 0.991, 0.998] (water balloon effect). If we simultaneously anchor B_inf
-via binf_loss (atmospheric light estimate from clean render), the degenerate basin is
-eliminated and the optimizer must find the physical solution.
+SP: gw_reverse_J and gauss_cap never tested on Saltpond. These are the
+mechanisms that broke the RS deadlock in repl03. SP's core barrier is
+GW divergence at 508K Gaussians — gw_reverse_J bypasses the GW-Gaussian
+capacity asymmetry, and gauss_cap reduces count toward the <300K activation zone.
 
-Three experiments:
-  1. sig_binf: sigmoid@5.0 + binf_loss lambda=1.0 (full joint constraint)
-  2. sig_binf01: sigmoid@5.0 + binf_loss lambda=0.1 (softer B_inf anchor)
-  3. binf01: NO sigmoid + binf_loss lambda=0.1 (control: does B_inf anchoring alone
-     prevent β_D over-activation by closing the escape route?)
+RS: dwr_lambda=2.0 and bg_lambda=0.05 were bundled with gauss_cap in repl03
+and never ablated. All other scenes show defaults (1.0, 0.01) are optimal.
+Depth-weighting at 2.0 may encourage β_D inflation.
 
-Base: repl03_rs_combined (gw_reverse_J, gauss_cap, medium_update_interval=50, dwr_lambda=2.0).
-
-  submit.sh --paid --render --analyze --batch-prefix repl05 \\
-    --dataset redsea_unprocessed --walltime 02:00:00
+Submit SP first, then RS:
+  submit.sh --paid --render --analyze --batch-prefix repl06 \
+    --dataset saltpond_unprocessed --walltime 01:30:00
+  [then swap EXPERIMENT_TEMPLATES to _RS_TEMPLATES and submit]
+  submit.sh --paid --render --analyze --batch-prefix repl06 \
+    --dataset redsea_unprocessed --walltime 01:30:00
 """
 import os
 
@@ -51,8 +51,37 @@ _C = {
 }
 
 # ---------------------------------------------------------------------------
-# RS base: repl03_rs_combined (the breakthrough config)
-# freeze + GW 0.50->0.15 + DCP=0.025 + gw_reverse_J + gauss_cap + medium boost
+# SP base: repl00_sp_freeze (best SP config — constant GW, DCP=0.10)
+# ---------------------------------------------------------------------------
+_SP_FREEZE_BASE = {
+    **_C,
+    "pipeline.model.gw-anneal-end": "0.50",
+    "pipeline.model.dcp-loss-lambda": "0.10",
+}
+
+# SP Experiment 1: gw_reverse_J on SP (never tested — RS breakthrough mechanism)
+_SP_REVERSE_J = {
+    **_SP_FREEZE_BASE,
+    "pipeline.model.gw-reverse-J": "True",
+}
+
+# SP Experiment 2: gauss_cap on SP (reduce 508K Gaussians toward <300K zone)
+_SP_GAUSS_CAP = {
+    **_SP_FREEZE_BASE,
+    "pipeline.model.densify-grad-thresh": "0.0005",
+    "pipeline.model.cull-alpha-thresh": "0.03",
+}
+
+# SP Experiment 3: combined (reverse_J + gauss_cap)
+_SP_COMBINED = {
+    **_SP_FREEZE_BASE,
+    "pipeline.model.gw-reverse-J": "True",
+    "pipeline.model.densify-grad-thresh": "0.0005",
+    "pipeline.model.cull-alpha-thresh": "0.03",
+}
+
+# ---------------------------------------------------------------------------
+# RS base: repl03_rs_combined (gw_reverse_J + gauss_cap + medium boost)
 # ---------------------------------------------------------------------------
 _RS_COMBINED_BASE = {
     **_C,
@@ -66,49 +95,41 @@ _RS_COMBINED_BASE = {
     "pipeline.model.dwr-lambda": "2.0",
 }
 
-# ---------------------------------------------------------------------------
-# Experiment 1: sigmoid@5.0 + binf_loss lambda=1.0 (full joint constraint)
-# Sigmoid caps β_D at 5.0 (physical ceiling), binf_loss anchors B_inf to
-# atmospheric light estimated from clean render. Both escape routes blocked.
-# ---------------------------------------------------------------------------
-_RS_SIG_BINF = {
+# RS Experiment 1: dwr_lambda=1.0 (unbundle from gauss_cap — default optimal on 4 scenes)
+_RS_DWR1 = {
     **_RS_COMBINED_BASE,
-    "pipeline.model.attenuation-do-sigmoid": "True",
-    "pipeline.model.backscatter-do-sigmoid": "True",
-    "pipeline.model.use-binf-loss": "True",
-    "pipeline.model.binf-loss-lambda": "1.0",
+    "pipeline.model.dwr-lambda": "1.0",
+}
+
+# RS Experiment 2: bg_lambda=0.01 (unbundle from gauss_cap — default optimal on 3 scenes)
+_RS_BG01 = {
+    **_RS_COMBINED_BASE,
+    "pipeline.model.bg-lambda": "0.01",
+}
+
+# RS Experiment 3: both defaults restored (dwr=1.0 + bg=0.01)
+_RS_DEFAULTS = {
+    **_RS_COMBINED_BASE,
+    "pipeline.model.dwr-lambda": "1.0",
+    "pipeline.model.bg-lambda": "0.01",
 }
 
 # ---------------------------------------------------------------------------
-# Experiment 2: sigmoid@5.0 + binf_loss lambda=0.1 (softer B_inf anchor)
-# Same sigmoid bound but gentler B_inf constraint. If lambda=1.0 causes
-# instability (previous testing showed 24x spike), this may be more stable.
+# Templates — start with SP, swap to _RS_TEMPLATES for RS submission
 # ---------------------------------------------------------------------------
-_RS_SIG_BINF01 = {
-    **_RS_COMBINED_BASE,
-    "pipeline.model.attenuation-do-sigmoid": "True",
-    "pipeline.model.backscatter-do-sigmoid": "True",
-    "pipeline.model.use-binf-loss": "True",
-    "pipeline.model.binf-loss-lambda": "0.1",
-}
-
-# ---------------------------------------------------------------------------
-# Experiment 3: binf_loss only, no sigmoid (control experiment)
-# Tests whether anchoring B_inf alone prevents β_D over-activation.
-# If the optimizer can't inflate B_inf as a pressure valve, does β_D
-# self-regulate? Or does it still over-activate to 21.64?
-# ---------------------------------------------------------------------------
-_RS_BINF01 = {
-    **_RS_COMBINED_BASE,
-    "pipeline.model.use-binf-loss": "True",
-    "pipeline.model.binf-loss-lambda": "0.1",
-}
-
-EXPERIMENT_TEMPLATES = [
-    {"suffix": "repl05_rs_sig_binf",   "extra_args": _RS_SIG_BINF},
-    {"suffix": "repl05_rs_sig_binf01", "extra_args": _RS_SIG_BINF01},
-    {"suffix": "repl05_rs_binf01",     "extra_args": _RS_BINF01},
+_SP_TEMPLATES = [
+    {"suffix": "repl06_sp_reverse_j", "extra_args": _SP_REVERSE_J},
+    {"suffix": "repl06_sp_gauss_cap", "extra_args": _SP_GAUSS_CAP},
+    {"suffix": "repl06_sp_combined",  "extra_args": _SP_COMBINED},
 ]
+
+_RS_TEMPLATES = [
+    {"suffix": "repl06_rs_dwr1",     "extra_args": _RS_DWR1},
+    {"suffix": "repl06_rs_bg01",     "extra_args": _RS_BG01},
+    {"suffix": "repl06_rs_defaults", "extra_args": _RS_DEFAULTS},
+]
+
+EXPERIMENT_TEMPLATES = _SP_TEMPLATES
 
 VIS = "tensorboard"
 VIEWER = False
