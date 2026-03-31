@@ -1,19 +1,19 @@
-"""Replication campaign repl06: Unexplored config levers for SP and RS.
+"""Replication campaign repl07: SP gauss_cap resubmission + RS dwr1+binf_loss.
 
-SP: gw_reverse_J and gauss_cap never tested on Saltpond. These are the
-mechanisms that broke the RS deadlock in repl03. SP's core barrier is
-GW divergence at 508K Gaussians — gw_reverse_J bypasses the GW-Gaussian
-capacity asymmetry, and gauss_cap reduces count toward the <300K activation zone.
+SP: Resubmit gauss_cap experiments that were lost to config race in repl06.
+  - gauss_cap only (reduce 508K Gaussians with standard GW)
+  - combined (gauss_cap + gw_reverse_J — test at lower Gaussian count)
 
-RS: dwr_lambda=2.0 and bg_lambda=0.05 were bundled with gauss_cap in repl03
-and never ablated. All other scenes show defaults (1.0, 0.01) are optimal.
-Depth-weighting at 2.0 may encourage β_D inflation.
+RS: Combine the two proven mechanisms:
+  - dwr_lambda=1.0 (repl06 showed gap +2.45 dB, β_D_blue in physical range)
+  - binf_loss λ=0.1 (repl05 showed reliable B_inf anchoring to ~0.68)
+  This addresses B_inf saturation [0.764, 0.910, 0.929] seen in repl06_rs_dwr1.
 
-Submit SP first, then RS:
-  submit.sh --paid --render --analyze --batch-prefix repl06 \
+IMPORTANT: Submit SP first, verify sub-jobs running, then swap to _RS_TEMPLATES.
+  submit.sh --paid --render --analyze --batch-prefix repl07 \
     --dataset saltpond_unprocessed --walltime 01:30:00
-  [then swap EXPERIMENT_TEMPLATES to _RS_TEMPLATES and submit]
-  submit.sh --paid --render --analyze --batch-prefix repl06 \
+  [verify running, then swap EXPERIMENT_TEMPLATES]
+  submit.sh --paid --render --analyze --batch-prefix repl07 \
     --dataset redsea_unprocessed --walltime 01:30:00
 """
 import os
@@ -23,9 +23,6 @@ WORKSPACE_DIR = f"/scratch/{USERID}/fyp-playground"
 
 DATASETS = {
     "saltpond_unprocessed": WORKSPACE_DIR + "/datasets/saltpond/saltpond_unprocessed",
-    "curasao_unprocessed": WORKSPACE_DIR + "/datasets/curasao/curasao_unprocessed",
-    "japanese-gardens_unprocessed": WORKSPACE_DIR + "/datasets/japanese-gardens/japanese-gardens_unprocessed",
-    "panama_unprocessed": WORKSPACE_DIR + "/datasets/panama/panama_unprocessed",
     "redsea_unprocessed": WORKSPACE_DIR + "/datasets/redsea/redsea_unprocessed",
 }
 
@@ -41,7 +38,6 @@ _COMMON = {
     "pipeline.model.gw-anneal-steps": "10000",
 }
 
-# Variant C: extended freeze + early stop-split
 _C = {
     **_COMMON,
     "pipeline.model.seathru-from-iter": "10000",
@@ -51,7 +47,7 @@ _C = {
 }
 
 # ---------------------------------------------------------------------------
-# SP base: repl00_sp_freeze (best SP config — constant GW, DCP=0.10)
+# SP base: repl00_sp_freeze (GW constant 0.50, DCP=0.10)
 # ---------------------------------------------------------------------------
 _SP_FREEZE_BASE = {
     **_C,
@@ -59,20 +55,14 @@ _SP_FREEZE_BASE = {
     "pipeline.model.dcp-loss-lambda": "0.10",
 }
 
-# SP Experiment 1: gw_reverse_J on SP (never tested — RS breakthrough mechanism)
-_SP_REVERSE_J = {
-    **_SP_FREEZE_BASE,
-    "pipeline.model.gw-reverse-J": "True",
-}
-
-# SP Experiment 2: gauss_cap on SP (reduce 508K Gaussians toward <300K zone)
+# SP Experiment 1: gauss_cap only (reduce 508K Gaussians, keep standard GW)
 _SP_GAUSS_CAP = {
     **_SP_FREEZE_BASE,
     "pipeline.model.densify-grad-thresh": "0.0005",
     "pipeline.model.cull-alpha-thresh": "0.03",
 }
 
-# SP Experiment 3: combined (reverse_J + gauss_cap)
+# SP Experiment 2: gauss_cap + gw_reverse_J (test reverse_J at lower Gaussian count)
 _SP_COMBINED = {
     **_SP_FREEZE_BASE,
     "pipeline.model.gw-reverse-J": "True",
@@ -81,9 +71,9 @@ _SP_COMBINED = {
 }
 
 # ---------------------------------------------------------------------------
-# RS base: repl03_rs_combined (gw_reverse_J + gauss_cap + medium boost)
+# RS base: repl03_rs_combined + dwr_lambda=1.0 (proven in repl06)
 # ---------------------------------------------------------------------------
-_RS_COMBINED_BASE = {
+_RS_DWR1_BASE = {
     **_C,
     "pipeline.model.gw-anneal-end": "0.15",
     "pipeline.model.dcp-loss-lambda": "0.025",
@@ -92,41 +82,26 @@ _RS_COMBINED_BASE = {
     "pipeline.model.cull-alpha-thresh": "0.03",
     "pipeline.model.bg-lambda": "0.05",
     "pipeline.model.medium-update-interval": "50",
-    "pipeline.model.dwr-lambda": "2.0",
-}
-
-# RS Experiment 1: dwr_lambda=1.0 (unbundle from gauss_cap — default optimal on 4 scenes)
-_RS_DWR1 = {
-    **_RS_COMBINED_BASE,
     "pipeline.model.dwr-lambda": "1.0",
 }
 
-# RS Experiment 2: bg_lambda=0.01 (unbundle from gauss_cap — default optimal on 3 scenes)
-_RS_BG01 = {
-    **_RS_COMBINED_BASE,
-    "pipeline.model.bg-lambda": "0.01",
-}
-
-# RS Experiment 3: both defaults restored (dwr=1.0 + bg=0.01)
-_RS_DEFAULTS = {
-    **_RS_COMBINED_BASE,
-    "pipeline.model.dwr-lambda": "1.0",
-    "pipeline.model.bg-lambda": "0.01",
+# RS Experiment: dwr=1.0 + binf_loss (anchor B_inf, prevent saturation)
+_RS_DWR1_BINF01 = {
+    **_RS_DWR1_BASE,
+    "pipeline.model.use-binf-loss": "True",
+    "pipeline.model.binf-loss-lambda": "0.1",
 }
 
 # ---------------------------------------------------------------------------
-# Templates — start with SP, swap to _RS_TEMPLATES for RS submission
+# Templates — start with SP, swap to _RS_TEMPLATES after SP jobs are RUNNING
 # ---------------------------------------------------------------------------
 _SP_TEMPLATES = [
-    {"suffix": "repl06_sp_reverse_j", "extra_args": _SP_REVERSE_J},
-    {"suffix": "repl06_sp_gauss_cap", "extra_args": _SP_GAUSS_CAP},
-    {"suffix": "repl06_sp_combined",  "extra_args": _SP_COMBINED},
+    {"suffix": "repl07_sp_gauss_cap", "extra_args": _SP_GAUSS_CAP},
+    {"suffix": "repl07_sp_combined",  "extra_args": _SP_COMBINED},
 ]
 
 _RS_TEMPLATES = [
-    {"suffix": "repl06_rs_dwr1",     "extra_args": _RS_DWR1},
-    {"suffix": "repl06_rs_bg01",     "extra_args": _RS_BG01},
-    {"suffix": "repl06_rs_defaults", "extra_args": _RS_DEFAULTS},
+    {"suffix": "repl07_rs_dwr1_binf01", "extra_args": _RS_DWR1_BINF01},
 ]
 
 EXPERIMENT_TEMPLATES = _SP_TEMPLATES
