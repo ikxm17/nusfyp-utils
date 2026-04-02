@@ -13,7 +13,7 @@ from paper_figures.style import (
     LINE_WIDTH_THIN, add_phase_boundaries, add_phase_shading,
     annotate_peak, save_figure, step_formatter,
 )
-from paper_figures.data import ExperimentData, get_series, ema_smooth, get_short_label
+from paper_figures.data import ExperimentData, get_series, ema_smooth, get_short_label, get_display_label
 
 
 def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
@@ -77,7 +77,8 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
 
     short = get_short_label(experiment)
-    ax.set_title(f"PSNR Trajectory — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"PSNR Trajectory — {display}")
 
     fig.tight_layout()
     save_figure(fig, f"psnr_{short}", output_dir, formats)

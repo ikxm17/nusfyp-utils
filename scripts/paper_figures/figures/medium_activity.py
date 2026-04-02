@@ -16,7 +16,7 @@ from paper_figures.style import (
     add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
     step_formatter,
 )
-from paper_figures.data import ExperimentData, get_series, ema_smooth, get_short_label
+from paper_figures.data import ExperimentData, get_series, ema_smooth, get_short_label, get_display_label
 
 
 # Colors for the three activity metrics
@@ -75,7 +75,8 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     apply_legend(ax, outside=True, ncol=3)
 
     short = get_short_label(experiment)
-    ax.set_title(f"Medium Activity — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"Medium Activity — {display}")
 
     fig.tight_layout()
     save_figure(fig, f"activity_{short}", output_dir, formats)

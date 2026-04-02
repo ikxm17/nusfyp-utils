@@ -12,7 +12,7 @@ from paper_figures.style import (
     FONT_SIZE_LEGEND,
     apply_legend, save_figure, step_formatter,
 )
-from paper_figures.data import ExperimentData, get_series, get_short_label
+from paper_figures.data import ExperimentData, get_series, get_short_label, get_display_label
 
 
 # Zoom window around activation
@@ -108,7 +108,8 @@ def plot(experiment, output_dir, smooth_window=0, formats=("pdf", "png"),
     apply_legend(ax, outside=True, ncol=2)
 
     short = get_short_label(experiment)
-    ax.set_title(f"Phase 2 Spike — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"Phase 2 Spike — {display}")
 
     fig.tight_layout()
     save_figure(fig, f"spike_{short}", output_dir, formats)

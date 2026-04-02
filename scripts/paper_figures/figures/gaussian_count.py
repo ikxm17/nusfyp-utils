@@ -11,7 +11,7 @@ from paper_figures.style import (
     FONT_SIZE_LEGEND,
     add_phase_boundaries, add_phase_shading, save_figure, step_formatter,
 )
-from paper_figures.data import ExperimentData, get_series, get_short_label
+from paper_figures.data import ExperimentData, get_series, get_short_label, get_display_label
 
 
 def _find_saturation_step(steps, values, window=500, threshold=0.01):
@@ -80,7 +80,8 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
 
     short = get_short_label(experiment)
-    ax.set_title(f"Gaussian Count — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"Gaussian Count — {display}")
 
     fig.tight_layout()
     save_figure(fig, f"gaussians_{short}", output_dir, formats)
