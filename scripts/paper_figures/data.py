@@ -207,7 +207,7 @@ def ema_smooth(values: np.ndarray, window: int) -> np.ndarray:
     return smoothed
 
 
-# Short dataset prefixes for legend labels
+# Short dataset prefixes for filenames (keep short for paths)
 _DATASET_SHORT = {
     "torpedo_unprocessed": "tor",
     "saltpond_unprocessed": "sp",
@@ -218,12 +218,23 @@ _DATASET_SHORT = {
     "iui3_unprocessed": "iui3",
 }
 
+# Full dataset names for figure labels and legends
+_DATASET_DISPLAY = {
+    "torpedo_unprocessed": "Torpedo",
+    "saltpond_unprocessed": "Saltpond",
+    "curasao_unprocessed": "Curacao",
+    "panama_unprocessed": "Panama",
+    "japanese_gardens_unprocessed": "Japanese Gardens",
+    "redsea_unprocessed": "Red Sea",
+    "iui3_unprocessed": "Red Sea",
+}
+
 
 def get_short_label(experiment: ExperimentData) -> str:
-    """Extract a short label suitable for legends.
+    """Extract a short label suitable for file names.
 
     Derives from the experiment directory name. Strips dataset prefix
-    and replaces with a short identifier (e.g., 'tor/dyn01_dcp005').
+    and replaces with a short identifier (e.g., 'tor_dyn01_dcp005').
     """
     # Label format is typically "experiment_name/timestamp"
     parts = experiment.label.split("/")
@@ -235,5 +246,23 @@ def get_short_label(experiment: ExperimentData) -> str:
             if name.startswith(prefix):
                 variant = name[len(prefix):]
                 return f"{short}_{variant}"
+        return name
+    return experiment.label
+
+
+def get_display_label(experiment: ExperimentData) -> str:
+    """Extract a human-readable label for figure legends.
+
+    Returns full dataset name (e.g., 'Curacao') when a single experiment
+    per dataset is plotted, or 'Dataset (variant)' when disambiguation
+    is needed.
+    """
+    parts = experiment.label.split("/")
+    if len(parts) >= 1:
+        name = parts[0]
+        for full, display in _DATASET_DISPLAY.items():
+            prefix = full + "-"
+            if name.startswith(prefix):
+                return display
         return name
     return experiment.label

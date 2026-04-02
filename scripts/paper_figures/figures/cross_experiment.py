@@ -10,12 +10,12 @@ import numpy as np
 
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
-    EXPERIMENT_PALETTE, FONT_SIZE_LEGEND,
+    EXPERIMENT_PALETTE, EXPERIMENT_LINESTYLES, FONT_SIZE_LEGEND,
     add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
     step_formatter,
 )
 from paper_figures.data import (
-    ExperimentData, get_series, ema_smooth, get_short_label,
+    ExperimentData, get_series, ema_smooth, get_short_label, get_display_label,
 )
 
 
@@ -57,12 +57,14 @@ def plot(experiments, output_dir, smooth_window=100, formats=("pdf", "png"),
 
         steps, values = series
         color = EXPERIMENT_PALETTE[i % len(EXPERIMENT_PALETTE)]
-        label = get_short_label(exp)
+        linestyle = EXPERIMENT_LINESTYLES[i % len(EXPERIMENT_LINESTYLES)]
+        label = get_display_label(exp)
 
         if smooth_window > 0 and len(values) > smooth_window:
             values = ema_smooth(values, smooth_window)
 
-        ax.plot(steps, values, color=color, label=label, zorder=3)
+        ax.plot(steps, values, color=color, linestyle=linestyle,
+                label=label, zorder=3)
         plotted += 1
 
     if plotted == 0:

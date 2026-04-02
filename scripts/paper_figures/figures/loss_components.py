@@ -11,12 +11,13 @@ import numpy as np
 
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
-    LOSS_COLORS, FONT_SIZE_LEGEND,
+    LOSS_COLORS, LOSS_LINESTYLES, FONT_SIZE_LEGEND,
     add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
     step_formatter,
 )
 from paper_figures.data import (
-    ExperimentData, get_series, ema_smooth, get_short_label, LOSS_TAGS,
+    ExperimentData, get_series, ema_smooth, get_short_label, get_display_label,
+    LOSS_TAGS,
 )
 
 # Losses to plot (in display order)
@@ -76,9 +77,9 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=4)
 
-    short = get_short_label(experiment)
+    display = get_display_label(experiment)
     mode = "budget" if budget else "absolute"
-    ax.set_title(f"Loss Components ({mode}) — {short}")
+    ax.set_title(f"Loss Components ({mode}) — {display}")
 
     fig.tight_layout()
     suffix = "_budget" if budget else ""
@@ -92,13 +93,16 @@ def _plot_absolute(ax, loss_data, smooth_window):
             continue
         steps, values = loss_data[name]
         color = LOSS_COLORS.get(name, "#666666")
+        linestyle = LOSS_LINESTYLES.get(name, "-")
         label = LOSS_DISPLAY.get(name, name)
 
         if smooth_window > 0 and len(values) > smooth_window:
             smoothed = ema_smooth(values, smooth_window)
-            ax.plot(steps, smoothed, color=color, label=label, zorder=3)
+            ax.plot(steps, smoothed, color=color, linestyle=linestyle,
+                    label=label, zorder=3)
         else:
-            ax.plot(steps, values, color=color, label=label, zorder=3)
+            ax.plot(steps, values, color=color, linestyle=linestyle,
+                    label=label, zorder=3)
 
 
 def _plot_budget(ax, loss_data, total_series, smooth_window):
@@ -113,6 +117,7 @@ def _plot_budget(ax, loss_data, total_series, smooth_window):
             continue
         steps, values = loss_data[name]
         color = LOSS_COLORS.get(name, "#666666")
+        linestyle = LOSS_LINESTYLES.get(name, "-")
         label = LOSS_DISPLAY.get(name, name)
 
         # Compute fraction at each step where total is available
@@ -133,4 +138,5 @@ def _plot_budget(ax, loss_data, total_series, smooth_window):
         if smooth_window > 0 and len(fractions) > smooth_window:
             fractions = ema_smooth(fractions, smooth_window)
 
-        ax.plot(frac_steps, fractions, color=color, label=label, zorder=3)
+        ax.plot(frac_steps, fractions, color=color, linestyle=linestyle,
+                label=label, zorder=3)

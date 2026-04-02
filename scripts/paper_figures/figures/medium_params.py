@@ -12,11 +12,13 @@ import numpy as np
 
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
-    CHANNEL_COLORS, FONT_SIZE_LEGEND,
+    CHANNEL_COLORS, CHANNEL_LINESTYLES, FONT_SIZE_LEGEND,
     add_phase_boundaries, add_phase_shading, apply_legend,
     save_figure, step_formatter,
 )
-from paper_figures.data import ExperimentData, get_series, ema_smooth, get_short_label
+from paper_figures.data import (
+    ExperimentData, get_series, ema_smooth, get_short_label, get_display_label,
+)
 
 
 def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
@@ -48,9 +50,11 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
             has_beta = True
             steps, values = series
             color = CHANNEL_COLORS[color_key]
+            linestyle = CHANNEL_LINESTYLES[color_key]
             if smooth_window > 0 and len(values) > smooth_window:
                 values = ema_smooth(values, smooth_window)
-            ax.plot(steps, values, color=color, label=f"β_D ({channel})", zorder=3)
+            ax.plot(steps, values, color=color, linestyle=linestyle,
+                    label=f"β_D ({channel})", zorder=3)
 
     if not has_beta:
         print("    Warning: No beta_D data found, skipping.")
@@ -68,8 +72,8 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
 
-    short = get_short_label(experiment)
-    ax.set_title(f"Attenuation β_D — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"Attenuation β_D — {display}")
 
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)
@@ -104,9 +108,11 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         has_binf = True
         steps, values = series
         color = CHANNEL_COLORS[color_key]
+        linestyle = CHANNEL_LINESTYLES[color_key]
         if smooth_window > 0 and len(values) > smooth_window:
             values = ema_smooth(values, smooth_window)
-        ax.plot(steps, values, color=color, label=f"B_∞ ({channel})", zorder=3)
+        ax.plot(steps, values, color=color, linestyle=linestyle,
+                label=f"B_∞ ({channel})", zorder=3)
 
     if not has_binf:
         print("    Warning: No B_inf data found, skipping.")
@@ -118,8 +124,8 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
 
-    short = get_short_label(experiment)
-    ax.set_title(f"Backscatter B_∞ — {short}")
+    display = get_display_label(experiment)
+    ax.set_title(f"Backscatter B_∞ — {display}")
 
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)

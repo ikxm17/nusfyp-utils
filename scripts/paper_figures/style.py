@@ -43,16 +43,24 @@ PHASE_LABELS = {
     "phase3_joint": "Phase 3",
 }
 
-# RGB channel colors
+# RGB channel colors and line styles (always distinguish by line style too)
 CHANNEL_COLORS = {"r": "#D32F2F", "g": "#388E3C", "b": "#1976D2"}
+CHANNEL_LINESTYLES = {"r": "-", "g": "--", "b": ":"}
 
-# Loss component colors
+# Loss component colors and line styles
 LOSS_COLORS = {
     "main_loss": "#333333",
     "gray_world": "#7B1FA2",
     "dcp": "#F57C00",
     "rgb_sat": "#0097A7",
     "rgb_sv": "#689F38",
+}
+LOSS_LINESTYLES = {
+    "main_loss": "-",
+    "gray_world": "--",
+    "dcp": "-.",
+    "rgb_sat": ":",
+    "rgb_sv": (0, (3, 1, 1, 1)),  # densely dashdotted
 }
 
 # Colorblind-safe experiment palette (ColorBrewer Dark2)
@@ -66,6 +74,8 @@ EXPERIMENT_PALETTE = [
     "#a6761d",  # brown
     "#666666",  # gray
 ]
+# Line styles to pair with experiment palette (cycle if more experiments)
+EXPERIMENT_LINESTYLES = ["-", "--", "-.", ":", "-", "--", "-.", ":"]
 
 
 # ---------------------------------------------------------------------------
@@ -123,7 +133,7 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
     if outside:
         legend_kw.update(
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.12),
+            bbox_to_anchor=(0.5, -0.18),
             ncol=ncol,
         )
     else:
