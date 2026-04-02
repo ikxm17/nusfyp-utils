@@ -72,6 +72,7 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
 
+    short = get_short_label(experiment)
     display = get_display_label(experiment)
     ax.set_title(f"Attenuation β_D — {display}")
 
@@ -124,6 +125,7 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
 
+    short = get_short_label(experiment)
     display = get_display_label(experiment)
     ax.set_title(f"Backscatter B_∞ — {display}")
 
