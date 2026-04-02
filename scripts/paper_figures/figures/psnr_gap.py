@@ -60,7 +60,7 @@ def plot(experiments, output_dir, smooth_window=100, formats=("pdf", "png"),
     fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT + 0.5))
 
     bars1 = ax.bar(x - bar_width / 2, psnr_vals, bar_width,
-                   label="PSNR (medium)", color="#1976D2", alpha=0.8)
+                   label="In-medium PSNR", color="#1976D2", alpha=0.8)
     bars2 = ax.bar(x + bar_width / 2, clean_vals, bar_width,
                    label="Clean PSNR", color="#66BB6A", alpha=0.8)
 
@@ -76,7 +76,7 @@ def plot(experiments, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_xticks(x)
     ax.set_xticklabels(labels, rotation=45, ha="right", fontsize=FONT_SIZE_TICK)
     apply_legend(ax, loc="upper right")
-    ax.set_title("PSNR-to-Clean Gap (Decomposition Activity)")
+    ax.set_title("PSNR--Clean Gap")
 
     fig.tight_layout()
     save_figure(fig, "psnr_gap_comparison", output_dir, formats)

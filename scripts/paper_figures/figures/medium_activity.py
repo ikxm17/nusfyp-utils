@@ -28,8 +28,8 @@ ACTIVITY_COLORS = {
 
 ACTIVITY_LABELS = {
     "medium_contribution": "Medium contribution",
-    "attenuation_magnitude": "Attenuation |1-T|",
-    "backscatter_magnitude": "Backscatter |B|",
+    "attenuation_magnitude": "Attenuation magnitude",
+    "backscatter_magnitude": "Backscatter magnitude",
 }
 
 
