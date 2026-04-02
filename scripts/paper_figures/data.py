@@ -213,7 +213,7 @@ _DATASET_SHORT = {
     "saltpond_unprocessed": "sp",
     "curasao_unprocessed": "cur",
     "panama_unprocessed": "pan",
-    "japanese_gardens_unprocessed": "jg",
+    "japanese-gardens_unprocessed": "jg",
     "redsea_unprocessed": "rs",
     "iui3_unprocessed": "iui3",
 }
@@ -224,7 +224,7 @@ _DATASET_DISPLAY = {
     "saltpond_unprocessed": "Saltpond",
     "curasao_unprocessed": "Curacao",
     "panama_unprocessed": "Panama",
-    "japanese_gardens_unprocessed": "Japanese Gardens",
+    "japanese-gardens_unprocessed": "Japanese Gardens",
     "redsea_unprocessed": "Red Sea",
     "iui3_unprocessed": "Red Sea",
 }
