@@ -12,7 +12,7 @@ import numpy as np
 
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
-    CHANNEL_COLORS, CHANNEL_LINESTYLES, FONT_SIZE_LEGEND,
+    CHANNEL_COLORS, CHANNEL_LINESTYLES,
     add_phase_boundaries, add_phase_shading, apply_legend,
     save_figure, step_formatter,
 )
@@ -60,12 +60,6 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         print("    Warning: No beta_D data found, skipping.")
         plt.close(fig)
         return
-
-    # Physical plausibility band
-    ax.axhspan(0.1, 5.0, alpha=0.08, color="#4CAF50", zorder=0)
-    ax.text(0.02, 0.02, "plausible range", transform=ax.transAxes,
-            fontsize=FONT_SIZE_LEGEND, color="#4CAF50", ha="left", va="bottom",
-            style="italic")
 
     ax.set_ylabel("β_D (attenuation)")
     ax.set_xlabel("Training Step")
