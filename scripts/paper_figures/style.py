@@ -131,9 +131,11 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
         columnspacing=1.0,
     )
     if outside:
+        # Place legend below the x-axis label (xlabel sits around y=-0.15 to -0.20
+        # of axes height after tight_layout; use -0.32 so the legend clears it).
         legend_kw.update(
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.18),
+            bbox_to_anchor=(0.5, -0.28),
             ncol=ncol,
         )
     else:
