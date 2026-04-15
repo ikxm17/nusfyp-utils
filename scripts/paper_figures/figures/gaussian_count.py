@@ -10,12 +10,15 @@ from paper_figures.data import ExperimentData, get_series, get_short_label, get_
 
 
 def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
-         width="single", no_phase=False, **kwargs):
+         width="single", no_phase=False, ylim_max=None, **kwargs):
     """Generate Gaussian count trajectory figure.
 
     Args:
         experiment: ExperimentData instance
         output_dir: directory to save figures
+        ylim_max: optional upper y-axis limit in raw count units (not
+            thousands). When given, overrides the auto-scaled limit so
+            that multiple plots can share a common axis.
     """
     series = get_series(experiment, "gaussian_count")
     if series is None:
@@ -30,8 +33,11 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     ax.plot(steps, values_k, linewidth=1.2, color="#666666", zorder=3)
 
-    ylim = ax.get_ylim()
-    ax.set_ylim(ylim[0], ylim[1] + (ylim[1] - ylim[0]) * 0.08)
+    if ylim_max is not None:
+        ax.set_ylim(0, ylim_max / 1000.0)
+    else:
+        ylim = ax.get_ylim()
+        ax.set_ylim(ylim[0], ylim[1] + (ylim[1] - ylim[0]) * 0.08)
 
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)

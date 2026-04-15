@@ -22,7 +22,7 @@ from paper_figures.data import (
 
 
 def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
-              width="single", no_phase=False, **kwargs):
+              width="single", no_phase=False, beta_ylim_max=None, **kwargs):
     """Generate standalone attenuation β_D figure.
 
     Args:
@@ -32,6 +32,8 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         formats: output format tuple
         width: "single" or "double"
         no_phase: suppress phase annotations
+        beta_ylim_max: optional upper y-axis limit shared across a
+            comparison group.
     """
     fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
     fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT))
@@ -66,6 +68,9 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
 
+    if beta_ylim_max is not None:
+        ax.set_ylim(0, beta_ylim_max)
+
     short = get_short_label(experiment)
     display = get_display_label(experiment)
     ax.set_title(f"Attenuation β_D — {display}")
@@ -79,7 +84,7 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
 
 def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
-              width="single", no_phase=False, **kwargs):
+              width="single", no_phase=False, binf_ylim_max=None, **kwargs):
     """Generate standalone backscatter B_inf figure.
 
     Args:
@@ -89,6 +94,8 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         formats: output format tuple
         width: "single" or "double"
         no_phase: suppress phase annotations
+        binf_ylim_max: optional upper y-axis limit shared across a
+            comparison group.
     """
     fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
     fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT))
@@ -118,6 +125,9 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
     apply_legend(ax, outside=True, ncol=3)
+
+    if binf_ylim_max is not None:
+        ax.set_ylim(0, binf_ylim_max)
 
     short = get_short_label(experiment)
     display = get_display_label(experiment)

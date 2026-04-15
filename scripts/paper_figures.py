@@ -35,6 +35,7 @@ _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
+from paper_figures import style
 from paper_figures.style import apply_style
 from paper_figures.data import load_experiments, get_short_label
 from read_config import resolve_outputs_dir
@@ -99,6 +100,9 @@ def cmd_single_figure(args, figure_name):
     formats = _parse_formats(args.format)
     output_dir = Path(args.output_dir)
 
+    losses_arg = getattr(args, "losses", None)
+    losses_list = [s.strip() for s in losses_arg.split(",")] if losses_arg else None
+
     for exp in experiments:
         short = get_short_label(exp)
         print(f"Generating {figure_name} for {short}...")
@@ -111,6 +115,10 @@ def cmd_single_figure(args, figure_name):
             no_phase=args.no_phase,
             # Pass figure-specific args
             budget=getattr(args, "budget", False),
+            losses=losses_list,
+            ylim_max=getattr(args, "ylim_max", None),
+            beta_ylim_max=getattr(args, "beta_ylim_max", None),
+            binf_ylim_max=getattr(args, "binf_ylim_max", None),
         )
 
 
@@ -236,6 +244,10 @@ def build_parser():
                        help="Suppress phase boundary annotations")
         p.add_argument("--label", default=None,
                        help="Custom labels for experiments (comma-separated)")
+        p.add_argument("--phase-labels", choices=["thesis", "presentation"],
+                       default="thesis",
+                       help="Phase-label set: 'thesis' (Phase 1/2/3) or "
+                            "'presentation' (Step 1/2/3). Default: thesis.")
 
     # Single-experiment figures
     for name in SINGLE_FIGURES:
@@ -244,6 +256,21 @@ def build_parser():
         if name == "loss-components":
             p.add_argument("--budget", action="store_true",
                            help="Show losses as fraction of total")
+            p.add_argument("--losses", default=None,
+                           help="Comma-separated loss names to plot "
+                                "(e.g. 'main_loss,gray_world'). Default: "
+                                "main_loss,gray_world,dcp,rgb_sat.")
+            p.add_argument("--ylim-max", type=float, default=None,
+                           help="Upper y-axis limit (absolute mode only).")
+        if name == "gaussian-count":
+            p.add_argument("--ylim-max", type=float, default=None,
+                           help="Upper y-axis limit in raw count units "
+                                "(not thousands).")
+        if name == "medium-params":
+            p.add_argument("--beta-ylim-max", type=float, default=None,
+                           help="Upper y-axis limit for β_D plot.")
+            p.add_argument("--binf-ylim-max", type=float, default=None,
+                           help="Upper y-axis limit for B_∞ plot.")
 
     # Multi-experiment figures
     for name in MULTI_FIGURES:
@@ -268,6 +295,8 @@ def main():
     if args.figure is None:
         parser.print_help()
         sys.exit(1)
+
+    style.set_label_mode(getattr(args, "phase_labels", "thesis"))
 
     if args.figure == "all":
         cmd_all(args)

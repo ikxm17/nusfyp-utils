@@ -43,6 +43,29 @@ PHASE_LABELS = {
     "phase3_joint": "Phase 3",
 }
 
+PHASE_LABELS_PRESENTATION = {
+    "phase1_vanilla": "Step 1",
+    "phase2_transition": "Step 2",
+    "phase3_joint": "Step 3",
+}
+
+_ACTIVE_PHASE_LABELS = PHASE_LABELS
+
+
+def set_label_mode(mode):
+    """Switch the active phase-label dictionary.
+
+    Args:
+        mode: "thesis" (Phase 1/2/3) or "presentation" (Step 1/2/3)
+    """
+    global _ACTIVE_PHASE_LABELS
+    if mode == "presentation":
+        _ACTIVE_PHASE_LABELS = PHASE_LABELS_PRESENTATION
+    elif mode == "thesis":
+        _ACTIVE_PHASE_LABELS = PHASE_LABELS
+    else:
+        raise ValueError(f"Unknown phase-label mode: {mode!r}")
+
 # RGB channel colors and line styles (always distinguish by line style too)
 CHANNEL_COLORS = {"r": "#D32F2F", "g": "#388E3C", "b": "#1976D2"}
 CHANNEL_LINESTYLES = {"r": "-", "g": "--", "b": ":"}
@@ -178,7 +201,7 @@ def add_phase_boundaries(ax, boundaries, label=True):
         trans = blended_transform_factory(ax.transData, ax.transAxes)
         for name, start, end in boundaries:
             mid = (start + end) / 2
-            phase_label = PHASE_LABELS.get(name, name)
+            phase_label = _ACTIVE_PHASE_LABELS.get(name, name)
             ax.text(mid, 0.97, phase_label, ha="center", va="top",
                     fontsize=FONT_SIZE_LEGEND, color="#666666", style="italic",
                     transform=trans,
