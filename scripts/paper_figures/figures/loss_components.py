@@ -12,8 +12,9 @@ import numpy as np
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
     LOSS_COLORS, LOSS_LINESTYLES, FONT_SIZE_LEGEND,
+    PRESENTATION_FIGSIZE,
     add_phase_boundaries, add_phase_shading, apply_legend, save_figure,
-    step_formatter,
+    step_formatter, is_presentation_mode, apply_presentation_layout,
 )
 from paper_figures.data import (
     ExperimentData, get_series, ema_smooth, get_short_label, get_display_label,
@@ -64,8 +65,12 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     # Load total loss for budget mode
     total_series = get_series(experiment, "total_loss")
 
-    fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
-    fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT))
+    if is_presentation_mode():
+        figsize = PRESENTATION_FIGSIZE
+    else:
+        fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
+        figsize = (fig_width, FIGURE_HEIGHT_DEFAULT)
+    fig, ax = plt.subplots(figsize=figsize)
 
     if budget and total_series is not None:
         _plot_budget(ax, active_losses, loss_data, total_series, smooth_window)
@@ -89,9 +94,13 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     short = get_short_label(experiment)
     display = get_display_label(experiment)
     mode = "budget" if budget else "absolute"
-    ax.set_title(f"Loss Components ({mode}) — {display}")
+    if is_presentation_mode():
+        ax.set_title("Loss Budget" if budget else "Loss Components")
+        apply_presentation_layout(fig)
+    else:
+        ax.set_title(f"Loss Components ({mode}) — {display}")
+        fig.tight_layout()
 
-    fig.tight_layout()
     suffix = "_budget" if budget else ""
     save_figure(fig, f"loss{suffix}_{short}", output_dir, formats)
 

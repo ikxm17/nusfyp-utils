@@ -1,11 +1,18 @@
 """Data loading layer — wraps read_tb.py functions for figure generation."""
 
+import os
+import pickle
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
+
+# Cache file co-located with the TB events inside each run_dir. Skipped
+# when PAPER_FIGURES_NO_CACHE=1 is set in the environment.
+CACHE_FILENAME = "_paper_figures_cache.pkl"
+CACHE_VERSION = 1  # bump when ExperimentData schema changes
 
 # Add scripts/ to path for read_tb / eval_experiments imports
 _scripts_dir = str(Path(__file__).resolve().parent.parent)
@@ -99,6 +106,22 @@ class ExperimentData:
 # Loading functions
 # ---------------------------------------------------------------------------
 
+def _events_mtime(run_dir: Path) -> float:
+    """Latest mtime across all TB event files (recursive, so Vanda's
+    nested layout works too). Returns 0 if none found."""
+    latest = 0.0
+    for f in run_dir.rglob("events.out.tfevents*"):
+        try:
+            latest = max(latest, f.stat().st_mtime)
+        except OSError:
+            continue
+    return latest
+
+
+def _cache_disabled() -> bool:
+    return os.environ.get("PAPER_FIGURES_NO_CACHE") == "1"
+
+
 def load_experiment(run_dir, outputs_dir=None) -> ExperimentData:
     """Load all data for a single experiment run.
 
@@ -108,6 +131,10 @@ def load_experiment(run_dir, outputs_dir=None) -> ExperimentData:
 
     Returns:
         ExperimentData with all fields populated
+
+    Cache: If a pickle at run_dir/_paper_figures_cache.pkl exists and
+    post-dates every TB events file, it's returned without re-parsing.
+    Disable with PAPER_FIGURES_NO_CACHE=1.
     """
     run_dir = Path(run_dir)
 
@@ -116,6 +143,22 @@ def load_experiment(run_dir, outputs_dir=None) -> ExperimentData:
             f"No TensorBoard event file in {run_dir}. "
             f"Sync TB data first, or check the path."
         )
+
+    cache_file = run_dir / CACHE_FILENAME
+    use_cache = not _cache_disabled()
+
+    if use_cache and cache_file.exists():
+        try:
+            if cache_file.stat().st_mtime > _events_mtime(run_dir):
+                with open(cache_file, "rb") as fh:
+                    payload = pickle.load(fh)
+                if (isinstance(payload, dict)
+                        and payload.get("version") == CACHE_VERSION
+                        and isinstance(payload.get("data"), ExperimentData)):
+                    return payload["data"]
+        except (pickle.UnpicklingError, EOFError, OSError) as e:
+            print(f"  Cache read failed ({cache_file.name}): {e}; "
+                  f"falling back to full parse.", file=sys.stderr)
 
     scalars = load_scalars(run_dir) or {}
     phases = load_phases(run_dir)
@@ -128,7 +171,7 @@ def load_experiment(run_dir, outputs_dir=None) -> ExperimentData:
     else:
         label = run_dir.name
 
-    return ExperimentData(
+    exp = ExperimentData(
         run_dir=run_dir,
         label=label,
         scalars=scalars,
@@ -137,6 +180,16 @@ def load_experiment(run_dir, outputs_dir=None) -> ExperimentData:
         boundaries=boundaries,
         eval_metrics=eval_metrics,
     )
+
+    if use_cache:
+        try:
+            with open(cache_file, "wb") as fh:
+                pickle.dump({"version": CACHE_VERSION, "data": exp}, fh)
+        except OSError as e:
+            print(f"  Cache write failed ({cache_file.name}): {e}",
+                  file=sys.stderr)
+
+    return exp
 
 
 def load_experiments(specs, outputs_dir) -> List[ExperimentData]:

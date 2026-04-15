@@ -12,9 +12,11 @@ import numpy as np
 
 from paper_figures.style import (
     FIGURE_WIDTH_SINGLE, FIGURE_WIDTH_DOUBLE, FIGURE_HEIGHT_DEFAULT,
+    PRESENTATION_FIGSIZE,
     CHANNEL_COLORS, CHANNEL_LINESTYLES,
     add_phase_boundaries, add_phase_shading, apply_legend,
     save_figure, step_formatter,
+    is_presentation_mode, apply_presentation_layout,
 )
 from paper_figures.data import (
     ExperimentData, get_series, ema_smooth, get_short_label, get_display_label,
@@ -35,8 +37,12 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         beta_ylim_max: optional upper y-axis limit shared across a
             comparison group.
     """
-    fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
-    fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT))
+    if is_presentation_mode():
+        figsize = PRESENTATION_FIGSIZE
+    else:
+        fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
+        figsize = (fig_width, FIGURE_HEIGHT_DEFAULT)
+    fig, ax = plt.subplots(figsize=figsize)
 
     # Try V3 (at_beta_*) first, fall back to V4 (at_beta_eff_*)
     beta_tags = [("at_beta_r", "at_beta_g", "at_beta_b")]
@@ -73,13 +79,19 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     short = get_short_label(experiment)
     display = get_display_label(experiment)
-    ax.set_title(f"Attenuation β_D — {display}")
+    if is_presentation_mode():
+        ax.set_title("β_D (attenuation)")
+    else:
+        ax.set_title(f"Attenuation β_D — {display}")
 
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)
         add_phase_boundaries(ax, experiment.boundaries)
 
-    fig.tight_layout()
+    if is_presentation_mode():
+        apply_presentation_layout(fig)
+    else:
+        fig.tight_layout()
     save_figure(fig, f"medium_beta_{short}", output_dir, formats)
 
 
@@ -97,8 +109,12 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
         binf_ylim_max: optional upper y-axis limit shared across a
             comparison group.
     """
-    fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
-    fig, ax = plt.subplots(figsize=(fig_width, FIGURE_HEIGHT_DEFAULT))
+    if is_presentation_mode():
+        figsize = PRESENTATION_FIGSIZE
+    else:
+        fig_width = FIGURE_WIDTH_DOUBLE if width == "double" else FIGURE_WIDTH_SINGLE
+        figsize = (fig_width, FIGURE_HEIGHT_DEFAULT)
+    fig, ax = plt.subplots(figsize=figsize)
 
     has_binf = False
     for tag, channel, color_key in [
@@ -131,13 +147,19 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     short = get_short_label(experiment)
     display = get_display_label(experiment)
-    ax.set_title(f"Backscatter B_∞ — {display}")
+    if is_presentation_mode():
+        ax.set_title("B_∞ (backscatter)")
+    else:
+        ax.set_title(f"Backscatter B_∞ — {display}")
 
     if not no_phase and experiment.boundaries:
         add_phase_shading(ax, experiment.boundaries)
         add_phase_boundaries(ax, experiment.boundaries)
 
-    fig.tight_layout()
+    if is_presentation_mode():
+        apply_presentation_layout(fig)
+    else:
+        fig.tight_layout()
     save_figure(fig, f"medium_binf_{short}", output_dir, formats)
 
 

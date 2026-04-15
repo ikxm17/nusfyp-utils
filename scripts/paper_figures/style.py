@@ -44,27 +44,50 @@ PHASE_LABELS = {
 }
 
 PHASE_LABELS_PRESENTATION = {
-    "phase1_vanilla": "Step 1",
-    "phase2_transition": "Step 2",
-    "phase3_joint": "Step 3",
+    "phase1_vanilla": "Period 1",
+    "phase2_transition": "Period 2",
+    "phase3_joint": "Period 3",
 }
 
 _ACTIVE_PHASE_LABELS = PHASE_LABELS
+_PRESENTATION_MODE = False
 
 
 def set_label_mode(mode):
-    """Switch the active phase-label dictionary.
+    """Switch the active phase-label dictionary and presentation-mode flag.
 
     Args:
-        mode: "thesis" (Phase 1/2/3) or "presentation" (Step 1/2/3)
+        mode: "thesis" (Phase 1/2/3, full titles, auto-scaled axes) or
+              "presentation" (Period 1/2/3, metric-only titles, uniform
+              figure dimensions).
     """
-    global _ACTIVE_PHASE_LABELS
+    global _ACTIVE_PHASE_LABELS, _PRESENTATION_MODE
     if mode == "presentation":
         _ACTIVE_PHASE_LABELS = PHASE_LABELS_PRESENTATION
+        _PRESENTATION_MODE = True
     elif mode == "thesis":
         _ACTIVE_PHASE_LABELS = PHASE_LABELS
+        _PRESENTATION_MODE = False
     else:
         raise ValueError(f"Unknown phase-label mode: {mode!r}")
+
+
+def is_presentation_mode():
+    return _PRESENTATION_MODE
+
+
+# Fixed canvas dimensions used in presentation mode so every figure
+# tiles identically on a slide grid. Enough bottom margin for an outside
+# legend even on plots that don't have one -- the empty space keeps all
+# figures at the same inner-axes size.
+PRESENTATION_FIGSIZE = (5.0, 3.5)
+PRESENTATION_MARGINS = dict(bottom=0.26, top=0.88, left=0.14, right=0.96)
+
+
+def apply_presentation_layout(fig):
+    """Replace tight_layout with fixed margins so every presentation
+    figure produces an identically-sized PNG."""
+    fig.subplots_adjust(**PRESENTATION_MARGINS)
 
 # RGB channel colors and line styles (always distinguish by line style too)
 CHANNEL_COLORS = {"r": "#D32F2F", "g": "#388E3C", "b": "#1976D2"}
@@ -258,9 +281,15 @@ def save_figure(fig, name, output_dir, formats=("pdf", "png")):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     saved = []
+    # In presentation mode, bypass savefig.bbox='tight' so every PNG is
+    # the full PRESENTATION_FIGSIZE canvas -- uniform tile dimensions.
+    save_kwargs = {}
+    if _PRESENTATION_MODE:
+        save_kwargs["bbox_inches"] = None
+        save_kwargs["pad_inches"] = 0
     for fmt in formats:
         path = output_dir / f"{name}.{fmt}"
-        fig.savefig(path)
+        fig.savefig(path, **save_kwargs)
         saved.append(path)
         print(f"  Saved: {path}")
     plt.close(fig)
