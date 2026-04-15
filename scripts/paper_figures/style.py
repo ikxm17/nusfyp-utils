@@ -281,16 +281,18 @@ def save_figure(fig, name, output_dir, formats=("pdf", "png")):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     saved = []
-    # In presentation mode, bypass savefig.bbox='tight' so every PNG is
-    # the full PRESENTATION_FIGSIZE canvas -- uniform tile dimensions.
-    save_kwargs = {}
-    if _PRESENTATION_MODE:
-        save_kwargs["bbox_inches"] = None
-        save_kwargs["pad_inches"] = 0
-    for fmt in formats:
-        path = output_dir / f"{name}.{fmt}"
-        fig.savefig(path, **save_kwargs)
-        saved.append(path)
-        print(f"  Saved: {path}")
+    # In presentation mode, temporarily override savefig.bbox='tight' set
+    # by apply_style(). 'tight' crops around artists (so figures with no
+    # legend come out shorter than figures with one); 'standard' emits
+    # the full PRESENTATION_FIGSIZE canvas so every tile has identical
+    # pixel dimensions.
+    ctx = (plt.rc_context({"savefig.bbox": "standard"})
+           if _PRESENTATION_MODE else plt.rc_context({}))
+    with ctx:
+        for fmt in formats:
+            path = output_dir / f"{name}.{fmt}"
+            fig.savefig(path)
+            saved.append(path)
+            print(f"  Saved: {path}")
     plt.close(fig)
     return saved
