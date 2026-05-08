@@ -154,10 +154,9 @@ cd ~/workspace/fyp/fyp-utils
 
 # Include checkpoints (for inspecting models or ad-hoc local renders)
 ./cluster/scripts/sync_results.sh --include-checkpoints
-
-# Delete synced files from remote after successful sync
-./cluster/scripts/sync_results.sh --cleanup
 ```
+
+Scratch cleanup on Vanda is a separate manual operation — `sync_results.sh` never deletes from the remote.
 
 ## How Editability Works
 

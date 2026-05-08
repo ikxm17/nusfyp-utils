@@ -362,13 +362,14 @@ def generate_grids(experiments, frames, output_types, analysis_dir, outputs_dir,
         log(f"  Warning: compare_renders.py grid failed: {stderr.strip()}")
         return []
 
-    # Collect saved grid paths from stdout ("Saved: <path>")
+    # Collect saved grid paths from stderr ("Saved: <path>" — compare_renders.py
+    # writes status to stderr; the on-disk files are the authoritative output).
     grid_images = []
-    for line in stdout.splitlines():
+    for line in stderr.splitlines():
         if line.startswith("Saved: "):
             grid_images.append(line[7:].strip())
 
-    # Also glob in case stdout parsing misses anything
+    # Filesystem fallback if stderr parsing missed anything.
     if not grid_images and grid_dir.is_dir():
         grid_subdir = grid_dir / "grid"
         if grid_subdir.is_dir():
