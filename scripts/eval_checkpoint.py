@@ -131,10 +131,10 @@ def run_eval_at_step(run_dir, step, render=False, dry_run=False):
         return {"label": label, "status": "no checkpoints found"}
 
     if actual_step != step:
-        print(f"  Note: Step {step} not found, using nearest: {actual_step}")
+        print(f"  Note: Step {step} not found, using nearest: {actual_step}", file=sys.stderr)
         step = actual_step
 
-    print(f"  Checkpoint: {ckpt_path.name}")
+    print(f"  Checkpoint: {ckpt_path.name}", file=sys.stderr)
 
     # Create patched config
     patched_config = create_patched_config(run_dir, step)
@@ -148,19 +148,19 @@ def run_eval_at_step(run_dir, step, render=False, dry_run=False):
     ]
 
     if dry_run:
-        print(f"  [DRY RUN] Would run: {' '.join(eval_cmd)}")
+        print(f"  [DRY RUN] Would run: {' '.join(eval_cmd)}", file=sys.stderr)
         if render:
-            print(f"  [DRY RUN] Would also render at step {step}")
+            print(f"  [DRY RUN] Would also render at step {step}", file=sys.stderr)
         return {"label": label, "status": "dry-run", "step": step}
 
     # Run eval
-    print(f"  Running ns-eval at step {step}...")
+    print(f"  Running ns-eval at step {step}...", file=sys.stderr)
     start = time.time()
     proc = subprocess.run(eval_cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     duration = time.time() - start
 
     if proc.returncode != 0:
-        print(proc.stdout, end="")
+        print(proc.stdout, end="", file=sys.stderr)
         return {"label": label, "status": f"eval failed (exit {proc.returncode})", "step": step, "duration": duration}
 
     # Read metrics
@@ -169,7 +169,7 @@ def run_eval_at_step(run_dir, step, render=False, dry_run=False):
 
     # Run render if requested
     if render:
-        print(f"  Running ns-render at step {step}...")
+        print(f"  Running ns-render at step {step}...", file=sys.stderr)
         render_cmd = [
             "ns-render", "dataset",
             "--load-config", str(patched_config),
@@ -182,7 +182,7 @@ def run_eval_at_step(run_dir, step, render=False, dry_run=False):
         render_duration = time.time() - render_start
 
         if render_proc.returncode != 0:
-            print(render_proc.stdout, end="")
+            print(render_proc.stdout, end="", file=sys.stderr)
             result["render_status"] = f"failed (exit {render_proc.returncode})"
         else:
             result["render_status"] = "success"
@@ -214,7 +214,7 @@ def main():
 
     for run_dir in runs:
         label = f"{run_dir.parent.parent.name}/{run_dir.name}"
-        print(f"\n=== {label} ===")
+        print(f"\n=== {label} ===", file=sys.stderr)
 
         if args.list_checkpoints:
             steps = list_checkpoints(run_dir)
@@ -232,9 +232,9 @@ def main():
                 if isinstance(val, float):
                     print(f"  {key}: {val:.4f}")
 
-        print(f"  Status: {result['status']}")
+        print(f"  Status: {result['status']}", file=sys.stderr)
         if result.get("duration"):
-            print(f"  Duration: {result['duration']:.1f}s")
+            print(f"  Duration: {result['duration']:.1f}s", file=sys.stderr)
 
 
 if __name__ == "__main__":

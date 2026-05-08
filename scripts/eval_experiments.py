@@ -175,7 +175,7 @@ def run_eval(run_dir, output_name, render_images, render_dir_name):
         duration = time.time() - start
 
         if proc.returncode != 0:
-            print(proc.stdout, end="")
+            print(proc.stdout, end="", file=sys.stderr)
             return {
                 "label": label,
                 "status": f"failed (exit code {proc.returncode})",
@@ -314,7 +314,7 @@ def main():
         print("No runs found.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Resolved {len(unique_runs)} run(s)\n")
+    print(f"Resolved {len(unique_runs)} run(s)\n", file=sys.stderr)
 
     results = []
     for i, run_dir in enumerate(unique_runs):
@@ -323,32 +323,32 @@ def main():
         # Validate run
         valid, reason = validate_run(run_dir)
         if not valid:
-            print(f"[{i + 1}/{len(unique_runs)}] Skipping {label}: {reason}")
+            print(f"[{i + 1}/{len(unique_runs)}] Skipping {label}: {reason}", file=sys.stderr)
             results.append({"label": label, "status": f"skipped ({reason})", "duration": 0})
             continue
 
         # Check for existing metrics
         metrics_path = run_dir / args.output_name
         if args.skip_existing and metrics_path.is_file():
-            print(f"[{i + 1}/{len(unique_runs)}] Skipping {label}: {args.output_name} already exists")
+            print(f"[{i + 1}/{len(unique_runs)}] Skipping {label}: {args.output_name} already exists", file=sys.stderr)
             results.append({"label": label, "status": "skipped (existing)", "duration": 0})
             continue
 
         cmd = build_eval_command(run_dir, args.output_name, args.render_images, args.render_dir_name)
 
         if args.dry_run:
-            print(f"[{i + 1}/{len(unique_runs)}] {label}")
-            print(f"    {' '.join(cmd)}")
-            print()
+            print(f"[{i + 1}/{len(unique_runs)}] {label}", file=sys.stderr)
+            print(f"    {' '.join(cmd)}", file=sys.stderr)
+            print(file=sys.stderr)
             continue
 
-        print(f"[{i + 1}/{len(unique_runs)}] Evaluating {label}")
-        print(f"    {' '.join(cmd)}")
+        print(f"[{i + 1}/{len(unique_runs)}] Evaluating {label}", file=sys.stderr)
+        print(f"    {' '.join(cmd)}", file=sys.stderr)
         result = run_eval(run_dir, args.output_name, args.render_images, args.render_dir_name)
         results.append(result)
-        print(f"  -> {result['status']} ({result['duration']:.1f}s)")
+        print(f"  -> {result['status']} ({result['duration']:.1f}s)", file=sys.stderr)
         if result.get("metrics"):
-            print(f"     {format_metrics(result['metrics'])}")
+            print(f"     {format_metrics(result['metrics'])}", file=sys.stderr)
 
     if not args.dry_run and results:
         print_summary(results)

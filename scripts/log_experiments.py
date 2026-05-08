@@ -333,7 +333,7 @@ def main():
         output_path = Path(args.output)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(output_text)
-        print(f"Log written to {output_path}")
+        print(f"Log written to {output_path}", file=sys.stderr)
     else:
         print(output_text)
 

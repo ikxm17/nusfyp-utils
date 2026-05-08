@@ -272,17 +272,17 @@ def cmd_info(args):
         )
         name = derive_short_name(config_path, outputs_dir)
 
-        print(f"\n{'=' * 60}")
-        print(f"Experiment: {name}")
-        print(f"Render dir: {render_dir}")
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print(f"Experiment: {name}", file=sys.stderr)
+        print(f"Render dir: {render_dir}", file=sys.stderr)
 
         if not render_dir.is_dir():
-            print("  No renders found.")
+            print("  No renders found.", file=sys.stderr)
             continue
 
         videos = sorted(render_dir.glob("*.mp4"))
         if not videos:
-            print("  No MP4 files found.")
+            print("  No MP4 files found.", file=sys.stderr)
             continue
 
         print(f"  {'Output':<25} {'Frames':>8} {'Resolution':>14}")
@@ -302,7 +302,7 @@ def cmd_extract(args):
             spec, outputs_dir, args.render_type, args.split, args.camera_path_name
         )
         name = derive_short_name(config_path, outputs_dir)
-        print(f"\nExtracting from: {name}")
+        print(f"\nExtracting from: {name}", file=sys.stderr)
 
         for output_type in args.output_types:
             video_path = render_dir / f"{output_type}.mp4"
@@ -317,7 +317,7 @@ def cmd_extract(args):
                 save_dir.mkdir(parents=True, exist_ok=True)
                 save_path = save_dir / f"{output_type}_frame{idx:03d}.png"
                 img.save(save_path)
-                print(f"  Saved: {save_path}")
+                print(f"  Saved: {save_path}", file=sys.stderr)
 
 
 def cmd_compare(args):
@@ -366,7 +366,7 @@ def cmd_compare(args):
             save_dir.mkdir(parents=True, exist_ok=True)
             save_path = save_dir / f"compare_{output_type}_frame{frame_idx:03d}.png"
             strip.save(save_path)
-            print(f"Saved: {save_path}")
+            print(f"Saved: {save_path}", file=sys.stderr)
 
 
 def cmd_grid(args):
@@ -414,7 +414,7 @@ def cmd_grid(args):
         save_dir.mkdir(parents=True, exist_ok=True)
         save_path = save_dir / f"grid_frame{frame_idx:03d}.png"
         grid.save(save_path)
-        print(f"Saved: {save_path}")
+        print(f"Saved: {save_path}", file=sys.stderr)
 
 
 # ---------------------------------------------------------------------------

@@ -137,8 +137,8 @@ def run_experiment(
     """Run a single experiment and return a result dict."""
     cmd = build_command(experiment)
     name = experiment["name"]
-    print(f"[{index + 1}/{total}] Starting: {name}")
-    print(f"    {' '.join(cmd)}")
+    print(f"[{index + 1}/{total}] Starting: {name}", file=sys.stderr)
+    print(f"    {' '.join(cmd)}", file=sys.stderr)
 
     Path(experiment.get("output_dir", "./outputs")).mkdir(parents=True, exist_ok=True)
     dataset_name = name.split("/")[0]
@@ -176,7 +176,7 @@ def run_experiment(
 
     duration = time.time() - start
     result = {"name": name, "status": status, "duration": duration, "log": str(log_file)}
-    print(f"  -> {status} ({duration / 60:.1f} min) -- log: {log_file}")
+    print(f"  -> {status} ({duration / 60:.1f} min) -- log: {log_file}", file=sys.stderr)
     return result
 
 
@@ -252,9 +252,9 @@ def main():
 
     # Startup info
     env_name = os.environ.get("CONDA_DEFAULT_ENV", "unknown")
-    print(f"Conda environment: {env_name}")
-    print(f"Python: {sys.executable}")
-    print(f"ns-train found: {shutil.which('ns-train')}")
+    print(f"Conda environment: {env_name}", file=sys.stderr)
+    print(f"Python: {sys.executable}", file=sys.stderr)
+    print(f"ns-train found: {shutil.which('ns-train')}", file=sys.stderr)
 
     if args.index is not None:
         if args.index < 0 or args.index >= len(experiments):
@@ -275,7 +275,7 @@ def main():
         print(file=sys.stderr)
         sys.exit(1)
 
-    print(f"Running {len(experiments)} experiments {'(dry run)' if args.dry_run else ''}\n")
+    print(f"Running {len(experiments)} experiments {'(dry run)' if args.dry_run else ''}\n", file=sys.stderr)
 
     if args.dry_run:
         for i, exp in enumerate(experiments):
