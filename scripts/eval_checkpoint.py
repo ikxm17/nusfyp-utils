@@ -32,7 +32,7 @@ _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
-from _argparse_helpers import make_parser
+from _argparse_helpers import format_header, make_parser
 from eval_experiments import resolve_runs, read_metrics
 from read_config import resolve_outputs_dir
 
@@ -211,6 +211,17 @@ def main():
     args = parser.parse_args()
     outputs_dir = resolve_outputs_dir(args.outputs_dir)
     runs = resolve_runs(args.experiment, outputs_dir)
+
+    header = format_header(
+        "Eval Checkpoint",
+        experiment=args.experiment,
+        target_step=args.step,
+        runs=len(runs),
+        render=args.render or None,
+        list_checkpoints=args.list_checkpoints or None,
+        dry_run=args.dry_run or None,
+    )
+    print(header, file=sys.stderr)
 
     for run_dir in runs:
         label = f"{run_dir.parent.parent.name}/{run_dir.name}"

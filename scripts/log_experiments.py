@@ -28,7 +28,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from _argparse_helpers import make_parser
+from _argparse_helpers import format_header, make_parser
 from read_config import (
     _descend_to_config,
     _looks_like_timestamps,
@@ -326,7 +326,18 @@ def main():
                 except SystemExit:
                     print(f"Warning: Could not resolve extra spec '{spec}', skipping.", file=sys.stderr)
 
-    log_lines = generate_log(runs, baseline, args.section, extra_runs, args.extra_labels)
+    header_lines = [
+        format_header(
+            "Experiment Log",
+            experiment_dir=experiment_dir,
+            baseline=baseline.name,
+            runs=len(runs),
+            extra_runs=len(extra_runs) or None,
+            section=args.section,
+        ),
+        "",
+    ]
+    log_lines = header_lines + generate_log(runs, baseline, args.section, extra_runs, args.extra_labels)
     output_text = "\n".join(log_lines) + "\n"
 
     if args.output:

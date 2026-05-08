@@ -19,7 +19,7 @@ import re
 import sys
 from pathlib import Path
 
-from _argparse_helpers import make_parser
+from _argparse_helpers import format_header, make_parser
 
 import yaml
 
@@ -314,6 +314,13 @@ def main():
         config_path = resolve_config_path(args.path, outputs_dir)
         config = load_config(config_path)
         params = extract_section(config, args.section)
+        header = format_header(
+            "Read Config",
+            config=config_path,
+            section=args.section,
+            param=args.param,
+        )
+        print(header, file=sys.stderr)
         print_config(params, args.section, args.param)
 
     elif args.command == "diff":
@@ -325,6 +332,13 @@ def main():
         dict_b = extract_section(config_b, args.section)
         name_a = args.name_a or _derive_label(config_path_a, outputs_dir)
         name_b = args.name_b or _derive_label(config_path_b, outputs_dir)
+        header = format_header(
+            "Diff Configs",
+            a=name_a,
+            b=name_b,
+            section=args.section,
+        )
+        print(header, file=sys.stderr)
         print_diff(dict_a, dict_b, args.section, name_a, name_b)
 
 

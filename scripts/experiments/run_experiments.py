@@ -28,7 +28,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _argparse_helpers import make_parser  # noqa: E402
+from _argparse_helpers import format_header, make_parser  # noqa: E402
 
 
 def load_config(config_path: str):
@@ -252,9 +252,19 @@ def main():
 
     # Startup info
     env_name = os.environ.get("CONDA_DEFAULT_ENV", "unknown")
-    print(f"Conda environment: {env_name}", file=sys.stderr)
-    print(f"Python: {sys.executable}", file=sys.stderr)
-    print(f"ns-train found: {shutil.which('ns-train')}", file=sys.stderr)
+    header = format_header(
+        "Run Experiments",
+        config=args.config,
+        experiments=len(experiments),
+        filter=args.filter,
+        dataset=args.dataset,
+        index=args.index,
+        conda_env=env_name,
+        python=sys.executable,
+        ns_train=shutil.which("ns-train"),
+        dry_run=args.dry_run or None,
+    )
+    print(header, file=sys.stderr)
 
     if args.index is not None:
         if args.index < 0 or args.index >= len(experiments):

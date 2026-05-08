@@ -31,7 +31,7 @@ import sys
 import time
 from pathlib import Path
 
-from _argparse_helpers import make_parser
+from _argparse_helpers import format_header, make_parser
 from read_config import (
     _looks_like_timestamps,
     resolve_config_path,
@@ -314,7 +314,20 @@ def main():
         print("No runs found.", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Resolved {len(unique_runs)} run(s)\n", file=sys.stderr)
+    mode = "path" if args.paths else "config"
+    header = format_header(
+        "Eval Experiments",
+        mode=mode,
+        outputs_dir=resolve_outputs_dir(args.outputs_dir) if args.paths else None,
+        config=args.config if not args.paths else None,
+        filter=args.filter,
+        dataset=args.dataset,
+        runs=len(unique_runs),
+        skip_existing=args.skip_existing or None,
+        dry_run=args.dry_run or None,
+    )
+    print(header, file=sys.stderr)
+    print(file=sys.stderr)
 
     results = []
     for i, run_dir in enumerate(unique_runs):
