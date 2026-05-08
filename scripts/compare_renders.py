@@ -22,6 +22,7 @@ from pathlib import Path
 import cv2
 from PIL import Image, ImageDraw, ImageFont
 
+from _argparse_helpers import make_parser
 from read_config import resolve_config_path, resolve_outputs_dir
 
 
@@ -422,8 +423,9 @@ def cmd_grid(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Compare rendered outputs across nerfstudio experiments.",
+    parser = make_parser(
+        "Compare rendered outputs across nerfstudio experiments.",
+        __doc__,
     )
 
     # Shared arguments

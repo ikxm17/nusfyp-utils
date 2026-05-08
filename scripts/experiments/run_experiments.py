@@ -27,6 +27,9 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _argparse_helpers import make_parser  # noqa: E402
+
 
 def load_config(config_path: str):
     """Import a Python config module by file path or module name.
@@ -187,8 +190,9 @@ def print_summary(results: list[dict]) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run nerfstudio training experiments.",
+    parser = make_parser(
+        "Run nerfstudio training experiments.",
+        __doc__,
     )
     parser.add_argument(
         "--dry-run",

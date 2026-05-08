@@ -26,6 +26,8 @@ import sys
 import shutil
 from pathlib import Path
 
+from _argparse_helpers import make_parser
+
 
 def fix_config(
     config_path: str,
@@ -111,8 +113,9 @@ def fix_config(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Fix absolute paths in nerfstudio config.yml for cross-machine use."
+    parser = make_parser(
+        "Fix absolute paths in nerfstudio config.yml for cross-machine use.",
+        __doc__,
     )
     parser.add_argument("config", help="Path to the nerfstudio config.yml")
     parser.add_argument(

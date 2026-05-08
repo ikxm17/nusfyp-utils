@@ -19,6 +19,8 @@ import os
 import sys
 
 import cv2
+
+from _argparse_helpers import make_parser
 import numpy as np
 
 
@@ -645,7 +647,7 @@ def build_json_output(image_dir, resolution, results, summary,
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="Underwater dataset characterization")
+    parser = make_parser("Underwater dataset characterization", __doc__)
     parser.add_argument("image_dir", help="Directory of images")
     parser.add_argument("--sort", choices=["name", "uciqe", "uiqm", "gw_dev", "dcp"],
                         default="name", help="Sort per-frame table (default: name)")

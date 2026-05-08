@@ -20,6 +20,8 @@ import sys
 
 import numpy as np
 
+from _argparse_helpers import make_parser
+
 
 # ---------------------------------------------------------------------------
 # COLMAP binary readers (adapted from seasplat/utils/colmap_utils.py)
@@ -420,8 +422,10 @@ def _build_report(mode, n_cameras, n_points, global_stats, cam_stats,
 # ---------------------------------------------------------------------------
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Depth range statistics from COLMAP sparse reconstructions")
+    parser = make_parser(
+        "Depth range statistics from COLMAP sparse reconstructions",
+        __doc__,
+    )
     parser.add_argument("input_path",
                         help="COLMAP sparse dir, transforms.json, or parent dataset dir")
     parser.add_argument("--bins", type=int, default=20,

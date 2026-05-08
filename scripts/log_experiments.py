@@ -28,6 +28,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from _argparse_helpers import make_parser
 from read_config import (
     _descend_to_config,
     _looks_like_timestamps,
@@ -250,8 +251,9 @@ def generate_log(runs, baseline_run, section, extra_runs=None, extra_labels=None
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Generate an experiment log with config diffs against a baseline.",
+    parser = make_parser(
+        "Generate an experiment log with config diffs against a baseline.",
+        __doc__,
     )
     parser.add_argument(
         "experiment_dir",

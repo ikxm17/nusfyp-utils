@@ -31,6 +31,7 @@ import sys
 import time
 from pathlib import Path
 
+from _argparse_helpers import make_parser
 from read_config import (
     _looks_like_timestamps,
     resolve_config_path,
@@ -220,8 +221,9 @@ def print_summary(results):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Run ns-eval on experiment runs and save metrics.",
+    parser = make_parser(
+        "Run ns-eval on experiment runs and save metrics.",
+        __doc__,
     )
     parser.add_argument(
         "paths",

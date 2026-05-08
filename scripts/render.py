@@ -21,6 +21,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from _argparse_helpers import make_parser
 from read_config import resolve_config_path, resolve_outputs_dir
 
 
@@ -387,8 +388,9 @@ def render_camera_path(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Render nerfstudio experiments and convert to video.",
+    parser = make_parser(
+        "Render nerfstudio experiments and convert to video.",
+        __doc__,
     )
 
     # Shared arguments via parent parser

@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
+from _argparse_helpers import make_parser
 from eval_experiments import resolve_runs
 from read_config import load_config, resolve_outputs_dir
 
@@ -1141,8 +1142,9 @@ def cmd_export(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Read and analyze TensorBoard event files from nerfstudio experiments.",
+    parser = make_parser(
+        "Read and analyze TensorBoard event files from nerfstudio experiments.",
+        __doc__,
     )
 
     # Shared arguments via parent parser

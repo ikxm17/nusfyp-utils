@@ -18,6 +18,8 @@ import sys
 import cv2
 import numpy as np
 
+from _argparse_helpers import make_parser
+
 
 def analyze_frame(path):
     """Return (blur_score, brightness) for a single image."""
@@ -31,7 +33,7 @@ def analyze_frame(path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Per-frame image quality assessment")
+    parser = make_parser("Per-frame image quality assessment", __doc__)
     parser.add_argument("image_dir", help="Directory of images")
     parser.add_argument("--blur-threshold", type=float, default=100.0,
                         help="Laplacian variance below this = blurry (default: 100.0)")

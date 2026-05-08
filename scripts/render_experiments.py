@@ -32,6 +32,7 @@ import sys
 import time
 from pathlib import Path
 
+from _argparse_helpers import make_parser
 from eval_experiments import resolve_runs, resolve_runs_from_config, validate_run
 from read_config import resolve_outputs_dir
 
@@ -226,8 +227,9 @@ def print_summary(results):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Batch-render nerfstudio experiments and convert to video.",
+    parser = make_parser(
+        "Batch-render nerfstudio experiments and convert to video.",
+        __doc__,
     )
     parser.add_argument(
         "paths",

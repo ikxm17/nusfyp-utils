@@ -19,6 +19,8 @@ import re
 import sys
 from pathlib import Path
 
+from _argparse_helpers import make_parser
+
 import yaml
 
 
@@ -262,8 +264,9 @@ def print_diff(dict_a, dict_b, section, name_a, name_b):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Read and diff nerfstudio experiment configs.",
+    parser = make_parser(
+        "Read and diff nerfstudio experiment configs.",
+        __doc__,
     )
 
     # Shared arguments via parent parser so --outputs-dir works after the subcommand

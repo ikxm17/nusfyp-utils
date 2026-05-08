@@ -32,6 +32,7 @@ _scripts_dir = str(Path(__file__).resolve().parent)
 if _scripts_dir not in sys.path:
     sys.path.insert(0, _scripts_dir)
 
+from _argparse_helpers import make_parser
 from eval_experiments import resolve_runs, read_metrics
 from read_config import resolve_outputs_dir
 
@@ -191,10 +192,9 @@ def run_eval_at_step(run_dir, step, render=False, dry_run=False):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Evaluate at a specific training checkpoint.",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__.split("Examples:")[1] if "Examples:" in __doc__ else "",
+    parser = make_parser(
+        "Evaluate at a specific training checkpoint.",
+        __doc__,
     )
     parser.add_argument("experiment", help="Experiment path spec")
     parser.add_argument("--step", type=int, required=True,
