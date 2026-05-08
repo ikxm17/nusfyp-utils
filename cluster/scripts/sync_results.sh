@@ -23,20 +23,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-# Cluster connection
-CLUSTER_USER="e0908336"
-CLUSTER_HOST="vanda.nus.edu.sg"
-CLUSTER_REMOTE="${CLUSTER_USER}@${CLUSTER_HOST}"
+# Cluster connection + remote paths (CLUSTER_USER/HOST/REMOTE, REMOTE_OUTPUTS,
+# REMOTE_LOGS) come from this shared env file so a host change propagates
+# atomically across cluster scripts.
+source "$SCRIPT_DIR/_cluster_env.sh"
 
-# Paths
-REMOTE_OUTPUTS="/scratch/${CLUSTER_USER}/fyp-playground/outputs/"
+# Local paths
 LOCAL_PLAYGROUND="$(cd "$PROJECT_ROOT/../fyp-playground" && pwd)"
 LOCAL_OUTPUTS="${LOCAL_PLAYGROUND}/outputs/"
 
 # Path rewrite settings (cluster → local)
 OLD_BASE="/home/svu/${CLUSTER_USER}"
 NEW_BASE="$HOME"
-OLD_DATA="/scratch/${CLUSTER_USER}/fyp-playground/datasets"
+OLD_DATA="${REMOTE_BASE}/datasets"
 NEW_DATA="${LOCAL_PLAYGROUND}/datasets"
 
 INCLUDE_CHECKPOINTS=false
@@ -110,8 +109,7 @@ rsync -avz --progress \
     "${CLUSTER_REMOTE}:${RSYNC_REMOTE_OUTPUTS}" \
     "$RSYNC_LOCAL_OUTPUTS"
 
-# Sync training logs (SUCCESS_*.log, FAILED_*.log)
-REMOTE_LOGS="/scratch/${CLUSTER_USER}/fyp-playground/logs/"
+# Sync training logs (SUCCESS_*.log, FAILED_*.log) — REMOTE_LOGS comes from _cluster_env.sh
 LOCAL_LOGS="${LOCAL_PLAYGROUND}/logs/"
 
 echo ""

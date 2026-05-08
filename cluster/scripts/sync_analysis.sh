@@ -16,9 +16,10 @@
 #   - SSH key or password access to vanda.nus.edu.sg as e0908336
 set -euo pipefail
 
-CLUSTER_USER="e0908336"
-CLUSTER_HOST="vanda.nus.edu.sg"
-CLUSTER_REMOTE="${CLUSTER_USER}@${CLUSTER_HOST}"
+# CLUSTER_USER/HOST/REMOTE, REMOTE_ANALYSIS_BASE, LOCAL_BATCH_ANALYSIS_DIR
+# come from the shared env file.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/_cluster_env.sh"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <batch_prefix> [--dataset <name>] [--local-dir <path>]"
@@ -28,7 +29,7 @@ fi
 BATCH_PREFIX="$1"
 shift
 
-LOCAL_DIR="/tmp/batch-analysis"
+LOCAL_DIR="$LOCAL_BATCH_ANALYSIS_DIR"
 DATASET=""
 
 while [[ $# -gt 0 ]]; do
@@ -45,7 +46,7 @@ if [ -n "$DATASET" ]; then
 else
     REMOTE_DIR="${BATCH_PREFIX}"
 fi
-REMOTE_ANALYSIS="/scratch/${CLUSTER_USER}/fyp-playground/analysis/${REMOTE_DIR}/"
+REMOTE_ANALYSIS="${REMOTE_ANALYSIS_BASE}/${REMOTE_DIR}/"
 
 # Verify remote directory exists before syncing
 if ! ssh "${CLUSTER_REMOTE}" "test -d ${REMOTE_ANALYSIS}"; then
