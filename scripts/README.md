@@ -568,20 +568,13 @@ python scripts/read_tb.py summary tune02_bg003 --outputs-dir ../fyp-playground/o
 # Summary in JSON format
 python scripts/read_tb.py summary tune02_bg003 --json --outputs-dir ../fyp-playground/outputs
 
-# Compact comparison (default — human-readable, eval metrics + key signals)
+# Compact comparison (default — human-readable, eval metrics + raw values)
 python scripts/read_tb.py compare tune02_bg003 tune02_bg005 tune02_gw005 tune02_gw020 \
-  --outputs-dir ../fyp-playground/outputs
-
-# Compact comparison with observations (threshold-based textual analysis)
-python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --describe \
   --outputs-dir ../fyp-playground/outputs
 
 # Full verbose table (all ~50 rows, for agent/script consumption)
 python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --verbose \
   --outputs-dir ../fyp-playground/outputs
-
-# Verbose + observations combined
-python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --verbose --describe
 
 # Comparison in JSON format
 python scripts/read_tb.py compare tune02_bg003 tune02_bg005 --json
@@ -613,10 +606,9 @@ python scripts/read_tb.py export tune02_bg003 --format json --tags "psnr" "main_
 - **Per-phase assessment**: convergence, PSNR, and loss at each training phase checkpoint (Phase 1: Vanilla 3DGS → Phase 2: Transition → Phase 3: Joint Optimization)
 - **Phase 3 per-component convergence**: which individual losses are still improving or diverging
 
-**`compare`** — Side-by-side comparison across experiments with three output modes:
-- **Compact** (default): Human-readable format showing eval metrics (from `metrics.json`), training summary, top-3 loss budget, and medium parameters. Includes right-aligned annotations flagging concerning values (slow recovery, declining PSNR, dominant losses, implausible B_inf).
+**`compare`** — Side-by-side comparison across experiments with two output modes:
+- **Compact** (default): Human-readable format showing eval metrics (from `metrics.json`), training summary, top-3 loss budget, and medium parameters. Reports raw numeric values only — interpretation (severity classification, recovery quality, parameter plausibility) is left to consuming workflows like `/auto-analyze`.
 - **Verbose** (`--verbose`): Full ~50-row table with all metrics grouped by category (training, PSNR, loss components, medium, phase transitions, config, per-phase). Used by `analyze_batch.py` and other scripts.
-- **Describe** (`--describe`): Appends threshold-based textual observations after either compact or verbose output. Flags: STILL_IMPROVING experiments worth extending, slow Phase 2 recovery, declining Phase 3 PSNR, dominant loss components (>50%), implausible B_inf channels (>0.5), concerning/critical spikes.
 
 Loads one experiment at a time to manage memory.
 
@@ -648,7 +640,6 @@ Loads one experiment at a time to manage memory.
 | `paths` (positional) | Experiment path specs to compare | required |
 | `--json` | Output JSON instead of human-readable table | off |
 | `--verbose` | Show full comparison table (all metrics, all rows) | off (compact) |
-| `--describe` | Append textual observations (combinable with default or `--verbose`) | off |
 
 **`export`:**
 
@@ -680,8 +671,8 @@ Eval Metrics
   ...
 Training Summary
   Convergence       STILL_IMPROVING         CONVERGED
-  Phase 2 spike               2.67x             2.81x    healthy
-  Phase 3 PSNR trend       +2.25 dB          -1.11 dB    tune10_dcp02_35k: declining
+  Phase 2 spike               2.67x             2.81x
+  Phase 3 PSNR trend       +2.25 dB          -1.11 dB
   ...
 Loss Budget (Phase 3 final)
   main_loss             48% (0.028)       49% (0.088)
@@ -699,13 +690,6 @@ Metric                       exp_a/ts1    exp_b/ts2
   [Per-Phase Assessment]
   phase3_joint/convergence   CONVERGED  STILL_IMPROVING
   ...
-```
-
-**Observations (`--describe`):** Appended after either format:
-```
-Observations:
-  - tune10_gw05: STILL_IMPROVING at 29,990 — Phase 3 gaining +2.25 dB, consider extending
-  - tune10_dcp02_35k: Phase 3 PSNR declining (-1.11 dB) despite CONVERGED status
 ```
 
 **JSON** (`--json`): list of `{"label": "...", "summary": {...}}` objects with all computed metrics.

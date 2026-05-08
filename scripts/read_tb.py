@@ -4,7 +4,6 @@ Usage:
     python scripts/read_tb.py summary <paths...> [--outputs-dir <path>] [--window N]
     python scripts/read_tb.py compare <paths...> [--outputs-dir <path>] [--window N]
     python scripts/read_tb.py compare <paths...> --verbose     # full table with all metrics
-    python scripts/read_tb.py compare <paths...> --describe    # compact + observations
     python scripts/read_tb.py export <path> [--outputs-dir <path>] [--format csv|json]
 
 Path resolution:
@@ -14,7 +13,7 @@ Subcommands:
     summary   Per-experiment training summary: loss components, PSNR trajectory,
               phase transitions, convergence assessment, medium parameters
     compare   Side-by-side comparison table across experiments (compact by default,
-              --verbose for full table, --describe for observations)
+              --verbose for full table)
     export    Dump raw scalar time-series to CSV or JSON
 """
 
@@ -39,21 +38,6 @@ _PRE_BASELINE_STEPS = 100
 
 # Window (in iterations) after activation to search for loss spike
 _SPIKE_DETECTION_WINDOW = 2000
-
-# ---------------------------------------------------------------------------
-# Observation thresholds (used in format_compact_comparison & generate_observations)
-# ---------------------------------------------------------------------------
-
-# Phase 2 spike ratio: above this is "critical"
-_SPIKE_CRITICAL_THRESHOLD = 10
-# Phase 2 spike ratio: above this is "concerning"
-_SPIKE_CONCERNING_THRESHOLD = 3
-# Phase 2 recovery duration (steps): above this is "slow"
-_RECOVERY_SLOW_THRESHOLD = 3000
-# Single loss component / total_loss: above this means it "dominates"
-_LOSS_DOMINANT_THRESHOLD = 0.5
-# B_inf channel value: above this is "implausibly high"
-_BINF_IMPLAUSIBLE_THRESHOLD = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -792,8 +776,6 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
     if not summaries:
         return "No summaries to compare."
 
-    n = len(summaries)
-
     # Short labels: use just the experiment name portion (before /)
     # Strip common dataset prefix (e.g. "saltpond_unprocessed-tune10_gw05" -> "tune10_gw05")
     short_labels = []
@@ -815,7 +797,6 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
     # Column layout
     metric_col = 24
     col_width = max(max(len(l) for l in short_labels), 16)
-    annot_col = 0  # will compute after building rows
 
     def _fmt_float(val, decimals=2):
         if val is None:
@@ -858,67 +839,30 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
 
     # Phase 2 spike
     spike_vals = []
-    spike_annots = []
-    for i, s in enumerate(summaries):
+    for s in summaries:
         ratio = s.get("per_phase/phase2_transition/spike_ratio")
-        if ratio is not None:
-            spike_vals.append(f"{ratio:.2f}x")
-            if ratio > _SPIKE_CRITICAL_THRESHOLD:
-                spike_annots.append((i, "critical"))
-            elif ratio > _SPIKE_CONCERNING_THRESHOLD:
-                spike_annots.append((i, "concerning"))
-            elif ratio >= 2:
-                spike_annots.append((i, "healthy"))
-            else:
-                spike_annots.append((i, "mild"))
-        else:
-            spike_vals.append("\u2014")
-            spike_annots.append((i, ""))
-
-    # Annotation: flag only concerning/critical, or show "healthy" for all if all healthy
-    spike_annot = ""
-    concerning = [(i, a) for i, a in spike_annots if a in ("concerning", "critical")]
-    if concerning:
-        parts = []
-        for i, a in concerning:
-            parts.append(f"{short_labels[i]}: {a}" if n > 1 else a)
-        spike_annot = "; ".join(parts)
-    else:
-        healthy = [a for _, a in spike_annots if a]
-        if healthy and all(a in ("healthy", "mild") for a in healthy):
-            spike_annot = "healthy" if all(a == "healthy" for a in healthy) else ""
-    train_rows.append(("Phase 2 spike", spike_vals, spike_annot))
+        spike_vals.append(f"{ratio:.2f}x" if ratio is not None else "\u2014")
+    train_rows.append(("Phase 2 spike", spike_vals, ""))
 
     # Phase 2 recovery
     recovery_vals = []
-    recovery_annots = []
-    for i, s in enumerate(summaries):
+    for s in summaries:
         steps = s.get("per_phase/phase2_transition/recovery_steps")
-        if steps is not None:
-            recovery_vals.append(f"{int(steps):,} steps")
-            if steps > _RECOVERY_SLOW_THRESHOLD:
-                recovery_annots.append(f"{short_labels[i]}: slow (>3k)" if n > 1 else "slow (>3k)")
-        else:
-            recovery_vals.append("\u2014")
-    recovery_annot = "; ".join(recovery_annots) if recovery_annots else ""
-    train_rows.append(("Phase 2 recovery", recovery_vals, recovery_annot))
+        recovery_vals.append(f"{int(steps):,} steps" if steps is not None else "\u2014")
+    train_rows.append(("Phase 2 recovery", recovery_vals, ""))
 
     # Phase 3 PSNR trend
     trend_vals = []
-    trend_annots = []
-    for i, s in enumerate(summaries):
+    for s in summaries:
         psnr_start = s.get("per_phase/phase3_joint/psnr_start")
         psnr_end = s.get("per_phase/phase3_joint/psnr_end")
         if psnr_start is not None and psnr_end is not None:
             delta = psnr_end - psnr_start
             sign = "+" if delta >= 0 else ""
             trend_vals.append(f"{sign}{delta:.2f} dB")
-            if delta < 0:
-                trend_annots.append(f"{short_labels[i]}: declining" if n > 1 else "declining")
         else:
             trend_vals.append("\u2014")
-    trend_annot = "; ".join(trend_annots) if trend_annots else ""
-    train_rows.append(("Phase 3 PSNR trend", trend_vals, trend_annot))
+    train_rows.append(("Phase 3 PSNR trend", trend_vals, ""))
 
     # Gaussians
     vals = [_fmt_int(s.get("gaussian_count")) for s in summaries]
@@ -973,30 +917,15 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
 
     # B_inf (RGB)
     binf_vals = []
-    binf_annots = []
-    for i, s in enumerate(summaries):
+    for s in summaries:
         r = s.get("medium/binf_r")
         g = s.get("medium/binf_g")
         b = s.get("medium/binf_b")
         if r is not None and g is not None and b is not None:
             binf_vals.append(f"{r:.3f}, {g:.3f}, {b:.3f}")
-            high_channels = []
-            if r > _BINF_IMPLAUSIBLE_THRESHOLD:
-                high_channels.append("r")
-            if g > _BINF_IMPLAUSIBLE_THRESHOLD:
-                high_channels.append("g")
-            if b > _BINF_IMPLAUSIBLE_THRESHOLD:
-                high_channels.append("b")
-            if high_channels:
-                ch_str = ",".join(high_channels)
-                binf_annots.append(
-                    f"{short_labels[i]}: B_inf_{ch_str} high" if n > 1
-                    else f"B_inf_{ch_str} high"
-                )
         else:
             binf_vals.append("\u2014")
-    binf_annot = "; ".join(binf_annots) if binf_annots else ""
-    medium_rows.append(("B_inf (RGB)", binf_vals, binf_annot))
+    medium_rows.append(("B_inf (RGB)", binf_vals, ""))
 
     # Background (RGB)
     bg_vals = []
@@ -1034,104 +963,6 @@ def format_compact_comparison(summaries, labels, eval_metrics_list):
         lines.append("")  # blank line between sections
 
     return "\n".join(lines)
-
-
-def generate_observations(summaries, labels, eval_metrics_list):
-    """Generate textual observations by applying threshold rules to comparison data.
-
-    Returns a list of observation strings, or empty list if nothing to flag.
-    """
-    observations = []
-    n = len(summaries)
-
-    # Short labels (same logic as format_compact_comparison)
-    short_labels = []
-    for label in labels:
-        parts = label.split("/")
-        name = parts[0]
-        if "-" in name:
-            name = name.split("-", 1)[1]
-        short_labels.append(name)
-    if len(set(short_labels)) < len(short_labels):
-        short_labels = [label.split("/")[0] for label in labels]
-    if len(set(short_labels)) < len(short_labels):
-        short_labels = labels
-
-    for i, s in enumerate(summaries):
-        name = short_labels[i]
-        convergence = s.get("convergence", "UNKNOWN")
-        psnr_start = s.get("per_phase/phase3_joint/psnr_start")
-        psnr_end = s.get("per_phase/phase3_joint/psnr_end")
-        spike_ratio = s.get("per_phase/phase2_transition/spike_ratio")
-        recovery_steps = s.get("per_phase/phase2_transition/recovery_steps")
-        total_steps = s.get("total_steps")
-
-        # Phase 3 PSNR trend
-        phase3_delta = None
-        if psnr_start is not None and psnr_end is not None:
-            phase3_delta = psnr_end - psnr_start
-
-        # STILL_IMPROVING + positive Phase 3 trend -> consider extending
-        if convergence == "STILL_IMPROVING" and phase3_delta is not None and phase3_delta > 0:
-            steps_str = f"{int(total_steps):,}" if total_steps else "?"
-            observations.append(
-                f"{name}: STILL_IMPROVING at {steps_str} \u2014 Phase 3 gaining "
-                f"+{phase3_delta:.2f} dB, consider extending"
-            )
-
-        # recovery_steps > threshold -> slow recovery
-        if recovery_steps is not None and recovery_steps > _RECOVERY_SLOW_THRESHOLD:
-            observations.append(
-                f"{name}: Phase 2 recovery slow ({int(recovery_steps):,} steps > 3,000 threshold) "
-                f"\u2014 consider later activation"
-            )
-
-        # Phase 3 PSNR declining
-        if phase3_delta is not None and phase3_delta < 0:
-            observations.append(
-                f"{name}: Phase 3 PSNR declining ({phase3_delta:+.2f} dB)"
-                + (" despite CONVERGED status \u2014 converged to suboptimal solution"
-                   if convergence == "CONVERGED" else "")
-            )
-
-        # Any single loss > 50% of total
-        total_loss_end = s.get("per_phase/phase3_joint/loss_end")
-        if total_loss_end and total_loss_end > 0:
-            for k, v in s.items():
-                if (k.startswith("per_phase/phase3_joint/losses/")
-                        and k.endswith("_end")
-                        and not k.endswith("_convergence")):
-                    comp = k.split("/losses/")[1].replace("_end", "")
-                    if v is not None and v / total_loss_end > _LOSS_DOMINANT_THRESHOLD:
-                        pct = v / total_loss_end * 100
-                        observations.append(
-                            f"{name}: {comp} dominates loss budget ({pct:.0f}%) "
-                            f"\u2014 {comp} lambda may be too high"
-                        )
-
-        # B_inf any channel implausibly high
-        for ch, ch_name in [("binf_r", "B_inf_r"), ("binf_g", "B_inf_g"), ("binf_b", "B_inf_b")]:
-            val = s.get(f"medium/{ch}")
-            if val is not None and val > _BINF_IMPLAUSIBLE_THRESHOLD:
-                observations.append(
-                    f"{name}: {ch_name}={val:.3f} implausibly high "
-                    f"\u2014 medium may be absorbing per-view variation"
-                )
-
-        # spike_ratio thresholds
-        if spike_ratio is not None:
-            if spike_ratio > _SPIKE_CRITICAL_THRESHOLD:
-                observations.append(
-                    f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 critical, "
-                    f"may permanently damage geometry"
-                )
-            elif spike_ratio > _SPIKE_CONCERNING_THRESHOLD:
-                observations.append(
-                    f"{name}: Phase 2 spike {spike_ratio:.1f}x \u2014 concerning, "
-                    f"consider later activation or smaller learning rates"
-                )
-
-    return observations
 
 
 # ---------------------------------------------------------------------------
@@ -1255,9 +1086,9 @@ def cmd_compare(args):
         print("No experiments with TensorBoard data found.", file=sys.stderr)
         sys.exit(1)
 
-    # Load eval metrics once (needed for compact mode and/or --describe)
+    # Load eval metrics once (needed for compact mode only)
     eval_metrics_list = None
-    if not args.json and (not args.verbose or args.describe):
+    if not args.json and not args.verbose:
         eval_metrics_list = [load_eval_metrics(rd) for rd in run_dirs]
 
     if args.json:
@@ -1269,17 +1100,6 @@ def cmd_compare(args):
     else:
         # Compact mode (default)
         print(format_compact_comparison(summaries, labels, eval_metrics_list))
-
-    if args.describe and not args.json:
-        obs = generate_observations(summaries, labels, eval_metrics_list)
-        if obs:
-            print()
-            print("Observations:")
-            for o in obs:
-                print(f"  - {o}")
-        else:
-            print()
-            print("Observations: (none flagged)")
 
 
 def cmd_export(args):
@@ -1395,10 +1215,6 @@ def main():
     compare_parser.add_argument(
         "--verbose", action="store_true",
         help="Show full comparison table (default: compact human-readable output)",
-    )
-    compare_parser.add_argument(
-        "--describe", action="store_true",
-        help="Add textual observations after the table (combinable with default or --verbose)",
     )
 
     # export subcommand
