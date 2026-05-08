@@ -12,6 +12,7 @@ Usage:
 
 import argparse
 import glob
+import json
 import os
 import sys
 
@@ -43,6 +44,8 @@ def main():
                         help="Mean brightness above this = overexposed (default: 220.0)")
     parser.add_argument("--sort", choices=["name", "blur", "brightness"], default="name",
                         help="Sort order for per-frame table (default: name)")
+    parser.add_argument("--json", action="store_true",
+                        help="Output JSON instead of human-readable text")
     parser.add_argument("-o", "--output", help="Write output to file instead of stdout")
     args = parser.parse_args()
 
@@ -99,34 +102,74 @@ def main():
     n_dark = sum(1 for r in results if "DARK" in r[3])
     n_bright = sum(1 for r in results if "BRIGHT" in r[3])
 
-    # Build report
-    lines = []
-    lines.append("Dataset Quality Report")
-    lines.append("======================")
-    lines.append(f"Directory:  {image_dir}")
-    lines.append(f"Frames:     {len(results)}")
-    lines.append(f"Resolution: {w} x {h}")
-    lines.append("")
-    lines.append("Summary")
-    lines.append("-------")
-    lines.append(f"{'':19s} {'Mean':>8s}   {'Median':>8s}   {'Std':>8s}   {'Min':>8s}   {'Max':>8s}")
-    lines.append(f"{'Blur (Lap var)':19s} {blurs.mean():8.2f}   {np.median(blurs):8.2f}   {blurs.std():8.2f}   {blurs.min():8.2f}   {blurs.max():8.2f}")
-    lines.append(f"{'Brightness':19s} {brights.mean():8.2f}   {np.median(brights):8.2f}   {brights.std():8.2f}   {brights.min():8.2f}   {brights.max():8.2f}")
-    lines.append("")
     pct = 100 * n_outliers / len(results)
-    lines.append(f"Outliers: {n_outliers} of {len(results)} ({pct:.1f}%)")
-    lines.append(f"  Blurry (<{args.blur_threshold}):      {n_blur}")
-    lines.append(f"  Underexposed (<{args.bright_low}): {n_dark}")
-    lines.append(f"  Overexposed (>{args.bright_high}): {n_bright}")
-    lines.append("")
-    lines.append("Per-Frame Results")
-    lines.append("-----------------")
-    lines.append(f"{'Frame':24s} {'Blur':>8s}   {'Brightness':>10s}  Flags")
-    for name, blur, brightness, flags in results:
-        flag_str = "  " + " ".join(flags) if flags else ""
-        lines.append(f"{name:24s} {blur:8.2f}   {brightness:10.2f}{flag_str}")
 
-    report = "\n".join(lines) + "\n"
+    if args.json:
+        report = json.dumps({
+            "directory": image_dir,
+            "frames": len(results),
+            "resolution": [int(w), int(h)],
+            "summary": {
+                "blur": {
+                    "mean": float(blurs.mean()),
+                    "median": float(np.median(blurs)),
+                    "std": float(blurs.std()),
+                    "min": float(blurs.min()),
+                    "max": float(blurs.max()),
+                },
+                "brightness": {
+                    "mean": float(brights.mean()),
+                    "median": float(np.median(brights)),
+                    "std": float(brights.std()),
+                    "min": float(brights.min()),
+                    "max": float(brights.max()),
+                },
+            },
+            "thresholds": {
+                "blur": float(args.blur_threshold),
+                "bright_low": float(args.bright_low),
+                "bright_high": float(args.bright_high),
+            },
+            "outliers": {
+                "total": n_outliers,
+                "fraction": pct / 100,
+                "blurry": n_blur,
+                "underexposed": n_dark,
+                "overexposed": n_bright,
+            },
+            "per_frame": [
+                {"name": name, "blur": float(blur), "brightness": float(brightness), "flags": flags}
+                for name, blur, brightness, flags in results
+            ],
+        }, indent=2) + "\n"
+    else:
+        # Build text report
+        lines = []
+        lines.append("Dataset Quality Report")
+        lines.append("======================")
+        lines.append(f"Directory:  {image_dir}")
+        lines.append(f"Frames:     {len(results)}")
+        lines.append(f"Resolution: {w} x {h}")
+        lines.append("")
+        lines.append("Summary")
+        lines.append("-------")
+        lines.append(f"{'':19s} {'Mean':>8s}   {'Median':>8s}   {'Std':>8s}   {'Min':>8s}   {'Max':>8s}")
+        lines.append(f"{'Blur (Lap var)':19s} {blurs.mean():8.2f}   {np.median(blurs):8.2f}   {blurs.std():8.2f}   {blurs.min():8.2f}   {blurs.max():8.2f}")
+        lines.append(f"{'Brightness':19s} {brights.mean():8.2f}   {np.median(brights):8.2f}   {brights.std():8.2f}   {brights.min():8.2f}   {brights.max():8.2f}")
+        lines.append("")
+        lines.append(f"Outliers: {n_outliers} of {len(results)} ({pct:.1f}%)")
+        lines.append(f"  Blurry (<{args.blur_threshold}):      {n_blur}")
+        lines.append(f"  Underexposed (<{args.bright_low}): {n_dark}")
+        lines.append(f"  Overexposed (>{args.bright_high}): {n_bright}")
+        lines.append("")
+        lines.append("Per-Frame Results")
+        lines.append("-----------------")
+        lines.append(f"{'Frame':24s} {'Blur':>8s}   {'Brightness':>10s}  Flags")
+        for name, blur, brightness, flags in results:
+            flag_str = "  " + " ".join(flags) if flags else ""
+            lines.append(f"{name:24s} {blur:8.2f}   {brightness:10.2f}{flag_str}")
+
+        report = "\n".join(lines) + "\n"
 
     if args.output:
         with open(args.output, "w") as f:

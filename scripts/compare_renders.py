@@ -16,6 +16,7 @@ Path resolution uses read_config.py — substring matching works (e.g. "seathru8
 """
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -266,30 +267,53 @@ def cmd_info(args):
     """Show frame counts, resolution, available output types for experiments."""
     outputs_dir = resolve_outputs_dir(args.outputs_dir)
 
+    json_payload = []
+
     for spec in args.experiments:
         render_dir, config_path = resolve_render_dir(
             spec, outputs_dir, args.render_type, args.split, args.camera_path_name
         )
         name = derive_short_name(config_path, outputs_dir)
 
-        print(f"\n{'=' * 60}", file=sys.stderr)
-        print(f"Experiment: {name}", file=sys.stderr)
-        print(f"Render dir: {render_dir}", file=sys.stderr)
+        if not args.json:
+            print(f"\n{'=' * 60}", file=sys.stderr)
+            print(f"Experiment: {name}", file=sys.stderr)
+            print(f"Render dir: {render_dir}", file=sys.stderr)
 
         if not render_dir.is_dir():
-            print("  No renders found.", file=sys.stderr)
+            if args.json:
+                json_payload.append({"experiment": name, "render_dir": str(render_dir),
+                                     "status": "no renders found", "outputs": []})
+            else:
+                print("  No renders found.", file=sys.stderr)
             continue
 
         videos = sorted(render_dir.glob("*.mp4"))
         if not videos:
-            print("  No MP4 files found.", file=sys.stderr)
+            if args.json:
+                json_payload.append({"experiment": name, "render_dir": str(render_dir),
+                                     "status": "no mp4 files", "outputs": []})
+            else:
+                print("  No MP4 files found.", file=sys.stderr)
             continue
 
-        print(f"  {'Output':<25} {'Frames':>8} {'Resolution':>14}")
-        print(f"  {'-' * 25} {'-' * 8} {'-' * 14}")
+        outputs = []
+        if not args.json:
+            print(f"  {'Output':<25} {'Frames':>8} {'Resolution':>14}")
+            print(f"  {'-' * 25} {'-' * 8} {'-' * 14}")
         for v in videos:
             count, w, h = get_video_info(v)
-            print(f"  {v.stem:<25} {count:>8} {w:>6}x{h:<6}")
+            outputs.append({"name": v.stem, "frames": int(count),
+                            "width": int(w), "height": int(h)})
+            if not args.json:
+                print(f"  {v.stem:<25} {count:>8} {w:>6}x{h:<6}")
+
+        if args.json:
+            json_payload.append({"experiment": name, "render_dir": str(render_dir),
+                                 "status": "ok", "outputs": outputs})
+
+    if args.json:
+        print(json.dumps(json_payload, indent=2))
 
 
 def cmd_extract(args):
@@ -486,10 +510,15 @@ def main():
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser(
+    info_parser = subparsers.add_parser(
         "info",
         parents=[shared],
         help="Show render metadata (frame counts, resolution, output types)",
+    )
+    info_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output JSON instead of human-readable table",
     )
 
     subparsers.add_parser(

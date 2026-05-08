@@ -443,6 +443,8 @@ def main():
                         help="Factor of median range below which = NARROW (default: 0.5)")
     parser.add_argument("--wide-factor", type=float, default=2.0,
                         help="Factor of median range above which = WIDE (default: 2.0)")
+    parser.add_argument("--json", action="store_true",
+                        help="Output JSON instead of human-readable text")
     args = parser.parse_args()
 
     input_path = os.path.abspath(args.input_path)
@@ -474,8 +476,37 @@ def main():
     # Collect all depths for histogram
     all_depths = np.concatenate([d for _, _, d, _ in results if len(d) > 0])
 
-    report = _build_report(mode_label, n_cameras, n_points, global_stats,
-                           cam_stats, all_depths, args, flag_thresholds)
+    if args.json:
+        per_camera = []
+        for name, near, far, med, n_pts, rng, flags in cam_stats:
+            entry = {
+                "name": name,
+                "near": (None if np.isnan(near) else float(near)),
+                "far": (None if np.isnan(far) else float(far)),
+                "median": (None if np.isnan(med) else float(med)),
+                "range": float(rng),
+                "n_points": int(n_pts),
+                "flags": list(flags),
+            }
+            per_camera.append(entry)
+        report = json.dumps({
+            "input_path": input_path,
+            "mode": mode_label,
+            "cameras": n_cameras,
+            "points_3d": n_points,
+            "thresholds": {
+                "shallow_pct": args.shallow_pct,
+                "deep_pct": args.deep_pct,
+                "narrow_factor": args.narrow_factor,
+                "wide_factor": args.wide_factor,
+            },
+            "global_stats": global_stats,
+            "flag_thresholds": flag_thresholds,
+            "per_camera": per_camera,
+        }, indent=2) + "\n"
+    else:
+        report = _build_report(mode_label, n_cameras, n_points, global_stats,
+                               cam_stats, all_depths, args, flag_thresholds)
 
     if args.output:
         with open(args.output, "w") as f:
