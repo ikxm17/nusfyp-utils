@@ -10,7 +10,10 @@
 #   ./cluster/scripts/sync_results.sh --include-checkpoints  # Also sync checkpoint files
 #   ./cluster/scripts/sync_results.sh --include-tb --tb-filter "tune18_*"  # Sync TB for matching experiments only
 #   ./cluster/scripts/sync_results.sh --dataset redsea_unprocessed        # Sync only this dataset's outputs
-#   ./cluster/scripts/sync_results.sh --cleanup              # Sync, then delete outputs/logs from scratch
+#
+# Scratch cleanup on Vanda is a separate, manual operation — see HANDOFF.md
+# "Disk cleanup on Vanda" for the recommended workflow. This script never
+# deletes anything on the remote.
 #
 # Prerequisites:
 #   - SSH key or password access to vanda.nus.edu.sg as e0908336
@@ -41,7 +44,6 @@ INCLUDE_TB=false
 INCLUDE_RENDERS=false
 TB_FILTER=""
 DATASET=""
-CLEANUP=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -50,8 +52,7 @@ while [[ $# -gt 0 ]]; do
         --include-renders) INCLUDE_RENDERS=true; shift ;;
         --tb-filter) TB_FILTER="$2"; shift 2 ;;
         --dataset) DATASET="$2"; shift 2 ;;
-        --cleanup) CLEANUP=true; shift ;;
-        *) echo "Unknown option: $1"; exit 1 ;;
+        *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
 
@@ -124,20 +125,21 @@ rsync -avz --progress "${CLUSTER_REMOTE}:${REMOTE_LOGS}" "$LOCAL_LOGS"
 echo ""
 echo "==> Rewriting paths in config.yml files..."
 
-find "$RSYNC_LOCAL_OUTPUTS" -name "config.yml" | while read config; do
-    python3 "$PROJECT_ROOT/scripts/change_config_path.py" "$config" \
-        --old-base "$OLD_BASE" \
-        --new-base "$NEW_BASE" \
-        --old-data "$OLD_DATA" \
-        --new-data "$NEW_DATA"
-done
+REWRITE_FAILED=0
+while IFS= read -r -d '' config; do
+    if ! python3 "$PROJECT_ROOT/scripts/change_config_path.py" "$config" \
+            --old-base "$OLD_BASE" \
+            --new-base "$NEW_BASE" \
+            --old-data "$OLD_DATA" \
+            --new-data "$NEW_DATA"; then
+        echo "    Path rewrite failed for: $config" >&2
+        REWRITE_FAILED=$((REWRITE_FAILED + 1))
+    fi
+done < <(find "$RSYNC_LOCAL_OUTPUTS" -name "config.yml" -print0)
 
-# Post-sync cleanup: remove synced outputs and logs from scratch
-if [ "$CLEANUP" = true ]; then
-    echo ""
-    echo "==> Cleaning up remote scratch..."
-    ssh "${CLUSTER_REMOTE}" "rm -rf ${REMOTE_OUTPUTS}* ${REMOTE_LOGS}*"
-    echo "    Removed contents of ${REMOTE_OUTPUTS} and ${REMOTE_LOGS}"
+if [ "$REWRITE_FAILED" -gt 0 ]; then
+    echo "==> $REWRITE_FAILED config.yml rewrite(s) failed; sync otherwise complete." >&2
+    exit 1
 fi
 
 echo ""
