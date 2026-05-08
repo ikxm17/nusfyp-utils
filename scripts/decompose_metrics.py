@@ -485,20 +485,6 @@ def format_text(results):
         lines.append(f"    Sum check:         {layer_sum:.4f}")
         lines.append("")
 
-        # Identify bottleneck
-        components = [
-            ("luminance", agg["ssim_luminance"]),
-            ("contrast", agg["ssim_contrast"]),
-            ("structure", agg["ssim_structure"]),
-        ]
-        bottleneck = min(components, key=lambda x: x[1])
-        lines.append(f"  SSIM bottleneck: {bottleneck[0]} ({bottleneck[1]:.4f})")
-
-        max_layer_idx = int(np.argmax(agg["lpips_layers"]))
-        lines.append(f"  LPIPS dominant layer: {max_layer_idx + 1} "
-                      f"({agg['lpips_layers'][max_layer_idx]:.4f})")
-        lines.append("")
-
         # Per-frame table
         lines.append("  Per-Frame Results:")
         hdr = (f"    {'GT File':24s} {'SSIM':>6s} {'Lum':>6s} "
