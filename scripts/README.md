@@ -10,6 +10,7 @@ Utility scripts for managing nerfstudio experiment workflows — from running ba
 | `read_config.py` | Read and diff nerfstudio experiment configs |
 | `log_experiments.py` | Generate experiment logs with config diffs against a baseline |
 | `eval_experiments.py` | Batch-run `ns-eval` and save metrics to experiment directories |
+| `eval_checkpoint.py` | Evaluate (and optionally render) at a specific training checkpoint |
 | `render.py` | Render experiments to video (wraps `ns-render` + ffmpeg) |
 | `render_experiments.py` | Batch-render multiple experiments (wraps `render.py` for all runs) |
 | `compare_renders.py` | Extract frames from render videos, compare across experiments visually |
@@ -40,6 +41,7 @@ config/experiment_config.py ──> eval_experiments.py  (config mode uses exper
 read_config.py ──> render.py               (renderer uses reader for path resolution)
 render.py ──> render_experiments.py         (batch renderer imports render.py functions)
 eval_experiments.py ──> render_experiments.py  (batch renderer reuses run resolution logic)
+eval_experiments.py ──> eval_checkpoint.py (checkpoint eval reuses resolve_runs + read_metrics)
 config/experiment_config.py ──> render_experiments.py  (config mode uses experiment config for run discovery)
 read_config.py ──> compare_renders.py      (visual comparison uses reader for path resolution)
 read_config.py ──> read_tb.py              (TB reader uses reader for path resolution + config loading)
@@ -258,6 +260,63 @@ python scripts/eval_experiments.py <path> --render-images
 - `log_experiments.py` (`find_runs`, `resolve_experiment_dir`)
 - `experiments/run_experiments.py` (`load_config`, for config mode)
 - `config/experiment_config.py` + `config/local_config.py` (config mode)
+
+---
+
+## eval_checkpoint.py
+
+Evaluate (and optionally render) at a specific training checkpoint instead of the final model. Patches `config.yml` to set `load_step`, runs `ns-eval`, and writes `metrics_step{N}.json` alongside the regular `metrics.json`. Useful for measuring peak-decomposition state when the final model has degraded, or for rendering a mid-training snapshot.
+
+### Usage
+
+```bash
+# Eval at peak decomposition step
+python scripts/eval_checkpoint.py dyn03_tor_anneal_high --step 19999
+
+# Eval + render at a specific step
+python scripts/eval_checkpoint.py saltpond-repl00_anneal --step 23999 --render
+
+# List available checkpoints for an experiment
+python scripts/eval_checkpoint.py <experiment> --step 0 --list-checkpoints
+
+# Preview without running
+python scripts/eval_checkpoint.py <experiment> --step 19999 --dry-run
+```
+
+### Arguments
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `experiment` (positional) | Experiment path spec (substring, method dir, or timestamp dir) | required |
+| `--step <N>` | Checkpoint step to evaluate at | required |
+| `--render` | Also render at the checkpoint | off |
+| `--list-checkpoints` | List available checkpoints for the experiment and exit | off |
+| `--outputs-dir <path>` | Base outputs directory | `$NERFSTUDIO_OUTPUTS` or `./outputs` |
+| `--dry-run` | Show what would be done without running | off |
+
+### Output placement
+
+```
+<timestamp>/
+  config.yml                      <-- patched in-place during eval; restored after
+  nerfstudio_models/
+  metrics.json                    <-- existing final-step metrics
+  metrics_step{N}.json            <-- new: ns-eval output at step N
+  renders/dataset/test/...        <-- if --render
+```
+
+If the requested step is not in `nerfstudio_models/`, the script snaps to the nearest available checkpoint and reports the substitution.
+
+### Notes / Caveats
+
+- `--step` is required — even with `--list-checkpoints`. Pass `--step 0` if you only want to list.
+- The script reuses `eval_experiments.resolve_runs` + `eval_experiments.read_metrics` for path resolution and metric parsing, so behaviour matches batch eval.
+
+### Dependencies
+
+- `ns-eval` (and `ns-render` when `--render` is set) on `PATH`
+- `eval_experiments.py` (`resolve_runs`, `read_metrics`)
+- `read_config.py` (`resolve_outputs_dir`)
 
 ---
 
