@@ -265,12 +265,17 @@ def cmd_info(args):
     outputs_dir = resolve_outputs_dir(args.outputs_dir)
 
     json_payload = []
+    n_experiments = 0
+    n_with_renders = 0
+    output_type_sets = []
+    frame_counts = []
 
     for spec in args.experiments:
         render_dir, config_path = resolve_render_dir(
             spec, outputs_dir, args.render_type, args.split, args.camera_path_name
         )
         name = derive_short_name(config_path, outputs_dir)
+        n_experiments += 1
 
         if not args.json:
             print(f"\n{'=' * 60}", file=sys.stderr)
@@ -302,15 +307,43 @@ def cmd_info(args):
             count, w, h = get_video_info(v)
             outputs.append({"name": v.stem, "frames": int(count),
                             "width": int(w), "height": int(h)})
+            frame_counts.append(int(count))
             if not args.json:
                 print(f"  {v.stem:<25} {count:>8} {w:>6}x{h:<6}")
+
+        n_with_renders += 1
+        output_type_sets.append({o["name"] for o in outputs})
 
         if args.json:
             json_payload.append({"experiment": name, "render_dir": str(render_dir),
                                  "status": "ok", "outputs": outputs})
 
+    common_outputs = sorted(set.intersection(*output_type_sets)) if output_type_sets else []
+    union_outputs = sorted(set.union(*output_type_sets)) if output_type_sets else []
+    summary = {
+        "experiments": n_experiments,
+        "with_renders": n_with_renders,
+        "common_output_types": common_outputs,
+        "union_output_types": union_outputs,
+        "frame_count_min": min(frame_counts) if frame_counts else None,
+        "frame_count_max": max(frame_counts) if frame_counts else None,
+    }
+
     if args.json:
-        print(json.dumps(json_payload, indent=2))
+        print(json.dumps({"summary": summary, "experiments": json_payload}, indent=2))
+    else:
+        print(f"\n{'=' * 60}", file=sys.stderr)
+        print("Summary", file=sys.stderr)
+        print(f"  Experiments:          {summary['experiments']}", file=sys.stderr)
+        print(f"  With renders:         {summary['with_renders']}", file=sys.stderr)
+        if common_outputs:
+            print(f"  Common output types:  {', '.join(common_outputs)}",
+                  file=sys.stderr)
+        else:
+            print(f"  Common output types:  (none)", file=sys.stderr)
+        if frame_counts:
+            print(f"  Frame counts:         {summary['frame_count_min']}–"
+                  f"{summary['frame_count_max']}", file=sys.stderr)
 
 
 def cmd_extract(args):
