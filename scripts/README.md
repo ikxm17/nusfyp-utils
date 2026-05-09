@@ -539,11 +539,23 @@ python scripts/compare_renders.py info seathru8k --render-type camera-path --cam
 | `--output-dir <path>` | Where to save results | `./comparisons` |
 | `--max-width <pixels>` | Max image width before downscaling | no limit |
 
+**`info`-only:**
+
+| Flag | Description | Default |
+|------|-------------|---------|
+| `--json` | Emit JSON instead of the tabular report | off |
+
 **`extract`, `compare`, `grid`:**
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `--frames <indices...>` | Frame indices to extract | `0` |
+
+### `info` output
+
+Text mode prints the per-experiment table on stdout and a Summary block on stderr (so `info > out.txt` captures only the table). The Summary reports total experiments, the set of output types common to all experiments, and the frame-count range.
+
+JSON mode (`--json`) returns `{"summary": {...}, "experiments": [...]}`. The `summary` keys are `experiments`, `with_renders`, `common_output_types`, `union_output_types`, `frame_count_min`, `frame_count_max`.
 
 ### Output structure
 
@@ -582,6 +594,9 @@ python scripts/change_config_path.py config.yml --old-base /home/saber \
 
 # Create a .bak backup before editing
 python scripts/change_config_path.py config.yml --old-base /home/saber --backup
+
+# Treat no-match as an error (e.g. in a pipeline that expects a successful rewrite)
+python scripts/change_config_path.py config.yml --old-base /home/saber --strict
 ```
 
 ### Arguments
@@ -594,6 +609,7 @@ python scripts/change_config_path.py config.yml --old-base /home/saber --backup
 | `--old-data <path>` | Old data path prefix (optional separate mapping) | none |
 | `--new-data <path>` | New data path prefix | none |
 | `--backup` | Create a `.bak` backup before editing | off |
+| `--strict` | Exit non-zero when no path components match | off |
 
 ### How it works
 
@@ -607,6 +623,8 @@ Nerfstudio serializes paths as YAML sequences:
 ```
 
 The script matches these `- component` line sequences and replaces them with the new path components.
+
+When zero matches occur the file is left untouched and a warning is printed to stderr; the exit code is 0 unless `--strict` is set. The success message reports the replacement count, e.g. `Updated config.yml (3 path replacements)`.
 
 ### Dependencies
 
@@ -788,11 +806,12 @@ python scripts/dataset_quality.py /path/to/images/ -o quality_report.txt
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `image_dir` (positional) | Directory containing `.png` / `.jpg` images | required |
+| `image_dir` (positional) | Directory containing `.png` / `.jpg` / `.JPG` images | required |
 | `--blur-threshold <float>` | Laplacian variance below this = blurry | `100.0` |
 | `--bright-low <float>` | Mean brightness below this = underexposed | `40.0` |
 | `--bright-high <float>` | Mean brightness above this = overexposed | `220.0` |
 | `--sort {name,blur,brightness}` | Sort order for per-frame table | `name` |
+| `--json` | Output JSON instead of human-readable text | off |
 | `-o, --output <file>` | Write report to file instead of stdout | stdout |
 
 ### Output
@@ -801,7 +820,10 @@ Report includes:
 - Directory path, frame count, resolution
 - Summary statistics (mean, median, std, min, max) for blur and brightness
 - Outlier counts by category
-- Per-frame table with blur score, brightness, and flags (`BLUR`, `DARK`, `BRIGHT`)
+- Flag Definitions block mapping `BLUR`/`DARK`/`BRIGHT` tokens to their thresholds
+- Per-frame table with blur score, brightness, and flags
+
+**JSON** (`--json`): includes `flag_definitions` alongside `thresholds` so consumers can render the same legend.
 
 ### Dependencies
 
@@ -860,6 +882,7 @@ The script auto-detects the input format from the path:
 | `--deep-pct <int>` | Percentile threshold for DEEP flag | `95` |
 | `--narrow-factor <float>` | Factor of median range below which = NARROW | `0.5` |
 | `--wide-factor <float>` | Factor of median range above which = WIDE | `2.0` |
+| `--json` | Output JSON instead of human-readable text | off |
 
 ### Output
 
@@ -868,7 +891,11 @@ Report includes:
 - Global depth statistics (min, max, mean, median, std, IQR, dynamic range, percentiles)
 - Flag thresholds (computed values for each flag, derived from the data and threshold parameters)
 - Text histogram of depth distribution
-- Per-camera table with near/far/median/range and flags (`SHALLOW`, `DEEP`, `NARROW`, `WIDE`)
+- Per-camera table with near/far/median/range and flags (`SHALLOW`, `DEEP`, `NARROW`, `WIDE`, `NO_POINTS`)
+
+`NO_POINTS` is set automatically for cameras with zero tracked 3D points and appears alongside the data-derived flags in both text and JSON output.
+
+**JSON** (`--json`): includes `flag_definitions` mapping each token to a human-readable description.
 
 ### Dependencies
 
@@ -919,6 +946,7 @@ python scripts/dataset_underwater.py /path/to/images/ \
 | `--depth-bins <int>` | Number of equal-count depth bins | `5` |
 | `--temporal` | Enable inter-frame appearance variance analysis | off |
 | `--temporal-window <int>` | Rolling window size for temporal stats | `5` |
+| `--outlier-sigma <float>` | Sigma threshold for temporal outlier-cluster detection | `2.0` |
 
 ### Metrics
 
@@ -945,7 +973,7 @@ python scripts/dataset_underwater.py /path/to/images/ \
 **Temporal variance** (with `--temporal`):
 - Frame-to-frame deltas for luminance, R/G ratio, B/G ratio
 - Rolling window std over configurable window
-- Outlier cluster detection (contiguous frames beyond 2 sigma)
+- Outlier cluster detection (contiguous frames beyond `--outlier-sigma`, default 2σ)
 - Predicts Phase 3 difficulty (high variance → ROV lighting → expected drift)
 
 ### Output
@@ -1061,13 +1089,14 @@ python scripts/agents/analyze_batch.py tune10 --outputs-dir ../fyp-playground/ou
 | `--output-types <types...>` | Output types for comparison grids | `clean_rgb medium_rgb depth accumulation backscatter attenuation_map` |
 | `--max-width <pixels>` | Max image width for renders | `480` |
 | `--cleanup-tb` | Delete local tfevents files after TB data has been extracted | `false` |
+| `--cleanup-tb-dry-run` | With `--cleanup-tb`, list files that would be deleted without deleting them | `false` |
 
 ### What it does (in order)
 
 1. **Find experiments**: Glob for `<batch_prefix>_*` in the outputs directory
 2. **Read metrics**: Load `metrics.json` (PSNR, SSIM, LPIPS, clean_psnr, etc.)
 3. **TB analysis**: Run `read_tb.py compare` across all experiments
-3b. **Cleanup TB** (if `--cleanup-tb`): Delete tfevents files now that metrics are in the report
+3b. **Cleanup TB** (if `--cleanup-tb`): Delete tfevents files now that metrics are in the report. Pair with `--cleanup-tb-dry-run` to preview which files would be deleted before running the irreversible delete.
 4. **Render info**: Get total frame count via `compare_renders.py info`
 5. **Pick frames**: Evenly space `--num-frames` frames across the render
 6. **Comparison grids**: Generate experiment x output type matrices via `compare_renders.py grid`
