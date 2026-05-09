@@ -246,9 +246,6 @@ def compose_grid(images_2d, row_labels, col_labels, bar_height=_LABEL_BAR_HEIGHT
         ty = y + bar_height + (cell_h - (bbox[3] - bbox[1])) // 2
         draw.text((tx, ty), row_label, fill=(255, 255, 255), font=font)
 
-        # Row header bar label (small, above row images)
-        # Already handled by row label on left
-
         for c in range(n_cols):
             x = label_col_width + c * cell_w
             img = images_2d[r][c]

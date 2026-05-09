@@ -57,9 +57,10 @@ def main():
     paths = sorted(
         glob.glob(os.path.join(image_dir, "*.png"))
         + glob.glob(os.path.join(image_dir, "*.jpg"))
+        + glob.glob(os.path.join(image_dir, "*.JPG"))
     )
     if not paths:
-        print(f"Error: no .png or .jpg files in {image_dir}", file=sys.stderr)
+        print(f"Error: no .png/.jpg/.JPG files in {image_dir}", file=sys.stderr)
         sys.exit(1)
 
     # Read first image for resolution

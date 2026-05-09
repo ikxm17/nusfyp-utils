@@ -137,13 +137,11 @@ def _detect_input(path):
     if os.path.isfile(images_bin) and os.path.isfile(points_bin):
         return "colmap", d
 
-    # Priority 2: path is/contains transforms.json
+    # Priority 2: path is/contains transforms.json (deferred — colmap subdir
+    # under the same parent takes precedence at Priority 3).
     if os.path.isfile(path) and os.path.basename(path) == "transforms.json":
         return "transforms", os.path.dirname(path)
     tj = os.path.join(d, "transforms.json")
-    if os.path.isfile(tj):
-        # But check for colmap subdirectory first (priority 3)
-        pass
 
     # Priority 3: directory with colmap/sparse/0/ subdirectory
     colmap_dir = os.path.join(d, "colmap", "sparse", "0")
