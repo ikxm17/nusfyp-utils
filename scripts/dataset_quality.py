@@ -130,6 +130,11 @@ def main():
                 "bright_low": float(args.bright_low),
                 "bright_high": float(args.bright_high),
             },
+            "flag_definitions": {
+                "BLUR": f"Laplacian variance < {args.blur_threshold}",
+                "DARK": f"mean brightness < {args.bright_low}",
+                "BRIGHT": f"mean brightness > {args.bright_high}",
+            },
             "outliers": {
                 "total": n_outliers,
                 "fraction": pct / 100,
@@ -161,6 +166,12 @@ def main():
         lines.append(f"  Blurry (<{args.blur_threshold}):      {n_blur}")
         lines.append(f"  Underexposed (<{args.bright_low}): {n_dark}")
         lines.append(f"  Overexposed (>{args.bright_high}): {n_bright}")
+        lines.append("")
+        lines.append("Flag Definitions")
+        lines.append("----------------")
+        lines.append(f"  BLUR:    Laplacian variance < {args.blur_threshold}")
+        lines.append(f"  DARK:    mean brightness < {args.bright_low}")
+        lines.append(f"  BRIGHT:  mean brightness > {args.bright_high}")
         lines.append("")
         lines.append("Per-Frame Results")
         lines.append("-----------------")

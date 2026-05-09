@@ -289,7 +289,9 @@ def _compute_stats(results, shallow_pct=5, deep_pct=95,
     flagged_stats = []
     for name, near, far, med, n_pts, rng, _ in cam_stats:
         flags = []
-        if not np.isnan(near):
+        if np.isnan(near):
+            flags.append("NO_POINTS")
+        else:
             if near < shallow_thresh:
                 flags.append("SHALLOW")
             if far > deep_thresh:
@@ -377,10 +379,11 @@ def _build_report(mode, n_cameras, n_points, global_stats, cam_stats,
         ft = flag_thresholds
         lines.append("Flag Thresholds")
         lines.append("---------------")
-        lines.append(f"  SHALLOW:  near depth < p{ft['shallow_pct']} of global depths ({ft['shallow_thresh']:.4f})")
-        lines.append(f"  DEEP:     far depth > p{ft['deep_pct']} of global depths ({ft['deep_thresh']:.4f})")
-        lines.append(f"  NARROW:   depth range < {ft['narrow_factor']}x median range ({ft['narrow_thresh']:.4f})")
-        lines.append(f"  WIDE:     depth range > {ft['wide_factor']}x median range ({ft['wide_thresh']:.4f})")
+        lines.append(f"  SHALLOW:    near depth < p{ft['shallow_pct']} of global depths ({ft['shallow_thresh']:.4f})")
+        lines.append(f"  DEEP:       far depth > p{ft['deep_pct']} of global depths ({ft['deep_thresh']:.4f})")
+        lines.append(f"  NARROW:     depth range < {ft['narrow_factor']}x median range ({ft['narrow_thresh']:.4f})")
+        lines.append(f"  WIDE:       depth range > {ft['wide_factor']}x median range ({ft['wide_thresh']:.4f})")
+        lines.append(f"  NO_POINTS:  camera has zero tracked 3D points")
         lines.append("")
 
     # Histogram
@@ -489,6 +492,13 @@ def main():
                 "flags": list(flags),
             }
             per_camera.append(entry)
+        flag_definitions = {
+            "SHALLOW": f"near depth < p{args.shallow_pct} of global depths",
+            "DEEP": f"far depth > p{args.deep_pct} of global depths",
+            "NARROW": f"depth range < {args.narrow_factor}x median range",
+            "WIDE": f"depth range > {args.wide_factor}x median range",
+            "NO_POINTS": "camera has zero tracked 3D points",
+        }
         report = json.dumps({
             "input_path": input_path,
             "mode": mode_label,
@@ -502,6 +512,7 @@ def main():
             },
             "global_stats": global_stats,
             "flag_thresholds": flag_thresholds,
+            "flag_definitions": flag_definitions,
             "per_camera": per_camera,
         }, indent=2) + "\n"
     else:

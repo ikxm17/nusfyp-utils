@@ -388,18 +388,16 @@ def build_depth_text_section(correlation_data):
 # Temporal analysis
 # ---------------------------------------------------------------------------
 
-# Outlier threshold: frames beyond this many std deviations are flagged
-_OUTLIER_SIGMA = 2
-
-
-def compute_temporal_stats(results, window=5):
+def compute_temporal_stats(results, window=5, outlier_sigma=2.0):
     """Compute inter-frame appearance variance and detect outlier clusters.
 
     Args:
         results: list of per-frame metric dicts (must be in temporal order).
         window: rolling window size for variance computation.
+        outlier_sigma: frames beyond this many std deviations are flagged.
 
-    Returns dict with 'global', 'per_frame', 'outlier_clusters', 'temporal_window'.
+    Returns dict with 'global', 'per_frame', 'outlier_clusters', 'temporal_window',
+    'outlier_sigma'.
     """
     n = len(results)
     if n < 2:
@@ -408,6 +406,7 @@ def compute_temporal_stats(results, window=5):
             "per_frame": [],
             "outlier_clusters": [],
             "temporal_window": window,
+            "outlier_sigma": outlier_sigma,
         }
 
     tracked_metrics = ["mean_luminance", "rg_ratio", "bg_ratio"]
@@ -458,7 +457,7 @@ def compute_temporal_stats(results, window=5):
             continue
         for i in range(n):
             deviation = abs(series[m][i] - mean) / std
-            if deviation > _OUTLIER_SIGMA:
+            if deviation > outlier_sigma:
                 outlier_flags[i] = True
                 outlier_metrics_per_frame[i].append(m)
 
@@ -499,6 +498,7 @@ def compute_temporal_stats(results, window=5):
         "per_frame": per_frame,
         "outlier_clusters": clusters,
         "temporal_window": window,
+        "outlier_sigma": outlier_sigma,
     }
 
 
@@ -535,9 +535,10 @@ def build_temporal_text_section(temporal_data):
             lines.append(f"  {label:20s}  {g[delta_key]:.4f}  ({g[frame_key]})")
 
     clusters = temporal_data["outlier_clusters"]
+    sigma = temporal_data.get("outlier_sigma", 2.0)
     lines.append("")
     if clusters:
-        lines.append(f"Outlier Clusters ({_OUTLIER_SIGMA} sigma):")
+        lines.append(f"Outlier Clusters ({sigma:g} sigma):")
         for c in clusters:
             if c["length"] == 1:
                 lines.append(
@@ -670,6 +671,9 @@ def main():
     parser.add_argument("--temporal-window", type=int, default=5,
                         dest="temporal_window",
                         help="Rolling window size for temporal stats (default: 5)")
+    parser.add_argument("--outlier-sigma", type=float, default=2.0,
+                        dest="outlier_sigma",
+                        help="Sigma threshold for outlier-cluster detection (default: 2.0)")
     args = parser.parse_args()
 
     image_dir = os.path.abspath(args.image_dir)
@@ -748,7 +752,9 @@ def main():
     temporal_data = None
     if args.temporal:
         temporal_results = sorted(results, key=lambda r: r["frame"])
-        temporal_data = compute_temporal_stats(temporal_results, args.temporal_window)
+        temporal_data = compute_temporal_stats(
+            temporal_results, args.temporal_window, args.outlier_sigma
+        )
 
     # Output
     if args.json_output:
