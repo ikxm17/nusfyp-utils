@@ -215,17 +215,17 @@ def compute_depth_per_frame(depth_source_path):
 
     Args:
         depth_source_path: path to COLMAP sparse dir, transforms.json, or
-            dataset directory (auto-detected via dataset_depth._detect_input).
+            dataset directory (auto-detected via dataset_depth.detect_input).
 
     Returns dict mapping image basename to median scene depth.
     """
     from dataset_depth import (
-        _detect_input,
-        _compute_colmap_depths,
-        _compute_transforms_depths,
+        detect_input,
+        compute_colmap_depths,
+        compute_transforms_depths,
     )
 
-    mode, base_dir = _detect_input(depth_source_path)
+    mode, base_dir = detect_input(depth_source_path)
     if mode is None:
         print(f"  Warning: could not detect depth source at {depth_source_path}",
               file=sys.stderr)
@@ -233,9 +233,9 @@ def compute_depth_per_frame(depth_source_path):
 
     print(f"  Loading depth data ({mode} mode)...", file=sys.stderr)
     if mode == "colmap":
-        results, _, _, _ = _compute_colmap_depths(base_dir)
+        results, _, _, _ = compute_colmap_depths(base_dir)
     else:
-        results, _, _, _ = _compute_transforms_depths(base_dir)
+        results, _, _, _ = compute_transforms_depths(base_dir)
 
     depth_map = {}
     for name, _cam_pos, dists, _n_pts in results:

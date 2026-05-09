@@ -119,7 +119,7 @@ def _read_ply_ascii(path):
 # Input auto-detection
 # ---------------------------------------------------------------------------
 
-def _detect_input(path):
+def detect_input(path):
     """Detect input mode from path. Returns (mode, base_dir).
 
     Modes: 'colmap', 'transforms'
@@ -162,7 +162,7 @@ def _detect_input(path):
 # Depth computation
 # ---------------------------------------------------------------------------
 
-def _compute_colmap_depths(base_dir):
+def compute_colmap_depths(base_dir):
     """Compute per-camera depths using COLMAP binary files with track info."""
     images = _read_images_binary(os.path.join(base_dir, "images.bin"))
     points3D = _read_points3D_binary(os.path.join(base_dir, "points3D.bin"))
@@ -198,7 +198,7 @@ def _compute_colmap_depths(base_dir):
     return results, len(images), len(points3D), "colmap"
 
 
-def _compute_transforms_depths(base_dir):
+def compute_transforms_depths(base_dir):
     """Compute per-camera depths using transforms.json (approximate, no tracks)."""
     tj_path = os.path.join(base_dir, "transforms.json")
     with open(tj_path) as f:
@@ -453,7 +453,7 @@ def main():
         print(f"Error: path does not exist: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    mode, base_dir = _detect_input(input_path)
+    mode, base_dir = detect_input(input_path)
     if mode is None:
         print(f"Error: could not detect COLMAP or transforms.json data in: {input_path}",
               file=sys.stderr)
@@ -462,9 +462,9 @@ def main():
     print(f"  Detected mode: {mode} ({base_dir})", file=sys.stderr)
 
     if mode == "colmap":
-        results, n_cameras, n_points, mode_label = _compute_colmap_depths(base_dir)
+        results, n_cameras, n_points, mode_label = compute_colmap_depths(base_dir)
     else:
-        results, n_cameras, n_points, mode_label = _compute_transforms_depths(base_dir)
+        results, n_cameras, n_points, mode_label = compute_transforms_depths(base_dir)
 
     global_stats, cam_stats, flag_thresholds = _compute_stats(
         results,
