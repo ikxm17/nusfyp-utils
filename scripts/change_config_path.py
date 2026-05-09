@@ -36,9 +36,12 @@ def fix_config(
     old_data: str | None = None,
     new_data: str | None = None,
     backup: bool = False,
-) -> str:
+) -> tuple[str, int]:
     """
     Read a nerfstudio YAML config and replace path prefixes.
+
+    Returns (rewritten_text, n_replacements). When n_replacements is 0
+    the file is left untouched and a warning is printed to stderr.
 
     The YAML contains PosixPath objects serialized as e.g.:
 
@@ -68,6 +71,7 @@ def fix_config(
         replacements.insert(0, make_replacement_map(old_data, new_data))
 
     output_lines = []
+    n_replacements = 0
     i = 0
     while i < len(lines):
         matched = False
@@ -92,6 +96,7 @@ def fix_config(
                     for part in new_parts:
                         output_lines.append(f"{indent}- {part}\n")
                     i += len(old_parts)
+                    n_replacements += 1
                     matched = True
                     break
         if not matched:
@@ -100,6 +105,11 @@ def fix_config(
 
     result = "".join(output_lines)
 
+    if n_replacements == 0:
+        print(f"Warning: no path components matched in {config_path}; "
+              f"file unchanged.", file=sys.stderr)
+        return result, n_replacements
+
     if backup:
         backup_path = config_path + ".bak"
         shutil.copy2(config_path, backup_path)
@@ -107,9 +117,9 @@ def fix_config(
 
     with open(config_path, "w") as f:
         f.write(result)
-    print(f"Updated {config_path}", file=sys.stderr)
+    print(f"Updated {config_path} ({n_replacements} path replacements)", file=sys.stderr)
 
-    return result
+    return result, n_replacements
 
 
 def main():
@@ -143,6 +153,12 @@ def main():
         action="store_true",
         help="Create a .bak backup before editing",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit non-zero when no path components match "
+             "(useful in pipelines that expect a successful rewrite)",
+    )
 
     args = parser.parse_args()
 
@@ -152,7 +168,7 @@ def main():
 
     new_base = args.new_base or os.environ.get("HOME", str(Path.home()))
 
-    fix_config(
+    _, n = fix_config(
         config_path=args.config,
         old_base=args.old_base,
         new_base=new_base,
@@ -160,6 +176,9 @@ def main():
         new_data=args.new_data,
         backup=args.backup,
     )
+
+    if args.strict and n == 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
