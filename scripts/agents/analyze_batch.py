@@ -657,6 +657,12 @@ def main():
         help="Delete local tfevents files after TB data has been extracted. "
              "Safe to use — the TB metrics are persisted to the JSON report.",
     )
+    parser.add_argument(
+        "--cleanup-tb-dry-run",
+        action="store_true",
+        default=False,
+        help="With --cleanup-tb, list files that would be deleted without deleting them.",
+    )
 
     args = parser.parse_args()
 
@@ -669,6 +675,10 @@ def main():
             outputs_dir = Path(env).expanduser().resolve()
         else:
             outputs_dir = Path("./outputs").resolve()
+
+    if not outputs_dir.is_dir():
+        log(f"Error: --outputs-dir does not exist: {outputs_dir}")
+        sys.exit(1)
 
     analysis_dir = Path(args.analysis_dir)
     analysis_dir.mkdir(parents=True, exist_ok=True)
@@ -720,13 +730,16 @@ def main():
     # Step 2: Read metrics
     # -----------------------------------------------------------------------
     log("[2/11] Reading metrics.json for each experiment...")
+    def _fmt(value, spec):
+        return format(value, spec) if isinstance(value, (int, float)) else "?"
+
     for exp_name, _, ts_dir in experiments:
         metrics = read_metrics(ts_dir)
         if metrics:
             report["metrics"][exp_name] = metrics
-            log(f"  {exp_name}: PSNR={metrics.get('psnr', '?'):.2f}, "
-                f"SSIM={metrics.get('ssim', '?'):.3f}, "
-                f"LPIPS={metrics.get('lpips', '?'):.3f}")
+            log(f"  {exp_name}: PSNR={_fmt(metrics.get('psnr'), '.2f')}, "
+                f"SSIM={_fmt(metrics.get('ssim'), '.3f')}, "
+                f"LPIPS={_fmt(metrics.get('lpips'), '.3f')}")
         else:
             msg = f"{exp_name}: metrics.json not found at {ts_dir / 'metrics.json'}"
             log(f"  {msg}")
@@ -773,17 +786,24 @@ def main():
     # Step 3b: Clean up TensorBoard files (optional)
     # -----------------------------------------------------------------------
     if args.cleanup_tb:
-        log("[3b/11] Cleaning up local tfevents files...")
+        action = "Would delete" if args.cleanup_tb_dry_run else "Cleaning up"
+        log(f"[3b/11] {action} local tfevents files...")
         deleted_count = 0
         deleted_bytes = 0
         for _, _, ts_dir in experiments:
             for tf_file in ts_dir.glob("events.out.tfevents.*"):
-                deleted_bytes += tf_file.stat().st_size
-                tf_file.unlink()
+                size = tf_file.stat().st_size
+                deleted_bytes += size
                 deleted_count += 1
+                if args.cleanup_tb_dry_run:
+                    log(f"  [dry-run] {tf_file} ({size / 1024**2:.2f} MB)")
+                else:
+                    tf_file.unlink()
         if deleted_count:
-            log(f"  Deleted {deleted_count} tfevents files, "
-                f"reclaimed {deleted_bytes / 1024**3:.2f} GB")
+            verb = "Would delete" if args.cleanup_tb_dry_run else "Deleted"
+            log(f"  {verb} {deleted_count} tfevents files, "
+                f"{'would reclaim' if args.cleanup_tb_dry_run else 'reclaimed'} "
+                f"{deleted_bytes / 1024**3:.2f} GB")
         else:
             log("  No tfevents files found to clean up")
 
