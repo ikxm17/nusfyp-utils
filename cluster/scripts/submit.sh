@@ -34,6 +34,7 @@ RENDER=false
 ANALYZE=false
 BATCH_PREFIX=""
 PAID=false
+DATASET=""
 EXTRA_ARGS=()
 QSUB_OPTS=()
 
@@ -66,6 +67,16 @@ while [[ $# -gt 0 ]]; do
         --walltime)
             QSUB_OPTS+=(-l "walltime=$2")
             shift 2
+            ;;
+        --dataset)
+            DATASET="$2"
+            EXTRA_ARGS+=(--dataset "$2")
+            shift 2
+            ;;
+        --dataset=*)
+            DATASET="${1#--dataset=}"
+            EXTRA_ARGS+=("$1")
+            shift
             ;;
         *)
             EXTRA_ARGS+=("$1")
@@ -160,16 +171,7 @@ if [ "$ANALYZE" = true ]; then
         exit 1
     fi
 
-    # Extract --dataset value from EXTRA_ARGS (positionally — matches the
-    # token immediately following --dataset; --dataset=<value> form not supported).
-    DATASET_FOR_ANALYZE=""
-    for ((i = 0; i < ${#EXTRA_ARGS[@]}; i++)); do
-        if [[ "${EXTRA_ARGS[i]}" == "--dataset" ]] && (( i + 1 < ${#EXTRA_ARGS[@]} )); then
-            DATASET_FOR_ANALYZE="${EXTRA_ARGS[i + 1]}"
-            break
-        fi
-    done
-    if [ -z "$DATASET_FOR_ANALYZE" ]; then
+    if [ -z "$DATASET" ]; then
         echo "Error: --analyze requires --dataset in the arguments" >&2
         exit 1
     fi
@@ -192,7 +194,7 @@ if [ "$ANALYZE" = true ]; then
 
     ANALYZE_JOB=$(qsub "${ANALYZE_QSUB_OPTS[@]}" \
         -W depend=afterok:"$RENDER_JOB" \
-        -v BATCH_PREFIX="$BATCH_PREFIX",DATASET="$DATASET_FOR_ANALYZE" \
+        -v BATCH_PREFIX="$BATCH_PREFIX",DATASET="$DATASET" \
         "$JOBS_DIR/analyze.pbs")
     echo "Analyze job submitted: $ANALYZE_JOB (depends on $RENDER_JOB)"
 fi
