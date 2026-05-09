@@ -30,6 +30,7 @@ Follows the same dual-mode pattern as eval_experiments.py (config mode + path mo
 import argparse
 import sys
 import time
+import traceback
 from pathlib import Path
 
 from _argparse_helpers import make_parser
@@ -51,8 +52,10 @@ def extract_data_path(config_path):
         data = getattr(config, "data", None)
         if data:
             return Path(data)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  Warning: could not extract data path from {config_path}: {e}",
+              file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
     return None
 
 
@@ -189,6 +192,8 @@ def render_single_run(run_dir, render_type, camera_paths, args):
         except SystemExit:
             renders.append(("dataset", "failed"))
         except Exception as e:
+            print(f"  Error rendering dataset for {label}: {e}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
             renders.append(("dataset", f"failed ({e})"))
 
     if render_type in ("camera-path", "all"):
@@ -205,6 +210,9 @@ def render_single_run(run_dir, render_type, camera_paths, args):
             except SystemExit:
                 renders.append((f"camera-path/{cp.stem}", "failed"))
             except Exception as e:
+                print(f"  Error rendering camera-path/{cp.stem} for {label}: {e}",
+                      file=sys.stderr)
+                traceback.print_exc(file=sys.stderr)
                 renders.append((f"camera-path/{cp.stem}", f"failed ({e})"))
 
     duration = time.time() - start
