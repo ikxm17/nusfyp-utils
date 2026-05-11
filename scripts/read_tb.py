@@ -463,7 +463,7 @@ def compute_summary(scalars, phases, window, converge_threshold=0.05,
     if gc:
         summary["gaussian_count"] = _final_value(gc)
 
-    # Medium parameters (B_inf, bg)
+    # Medium parameters (final values + plateau verdicts on trajectories)
     medium_tags = {
         "bg_r": "Train Metrics Dict/bg_r",
         "bg_g": "Train Metrics Dict/bg_g",
@@ -471,11 +471,35 @@ def compute_summary(scalars, phases, window, converge_threshold=0.05,
         "binf_r": "Train Metrics Dict/binf_r",
         "binf_g": "Train Metrics Dict/binf_g",
         "binf_b": "Train Metrics Dict/binf_b",
+        "bs_beta_r": "Train Metrics Dict/bs_beta_r",
+        "bs_beta_g": "Train Metrics Dict/bs_beta_g",
+        "bs_beta_b": "Train Metrics Dict/bs_beta_b",
+        "at_beta_r": "Train Metrics Dict/at_beta_r",
+        "at_beta_g": "Train Metrics Dict/at_beta_g",
+        "at_beta_b": "Train Metrics Dict/at_beta_b",
     }
     for name, tag in medium_tags.items():
         series = scalars.get(tag)
-        if series:
-            summary[f"medium/{name}"] = _final_value(series)
+        if not series:
+            continue
+        summary[f"medium/{name}"] = _final_value(series)
+        # Plateau verdict on final-10% window. PLATEAUED = slope-near-zero,
+        # DRIFTING = slope-non-zero (either direction), INACTIVE = parameter
+        # never moved meaningfully (saltpond's 1D-projection channels).
+        max_abs = max(abs(v) for _, v in series)
+        if max_abs < 1e-3:
+            summary[f"medium_plateau/{name}"] = "INACTIVE"
+        elif len(series) >= 20:
+            plateau_window = max(len(series) // 10, 10)
+            verdict = _assess_convergence_series(
+                series, plateau_window, threshold=converge_threshold
+            )
+            if verdict == "CONVERGED":
+                summary[f"medium_plateau/{name}"] = "PLATEAUED"
+            elif verdict in ("STILL_IMPROVING", "DIVERGING"):
+                summary[f"medium_plateau/{name}"] = "DRIFTING"
+            else:
+                summary[f"medium_plateau/{name}"] = "UNKNOWN"
 
     # Phase transitions
     transitions = detect_phase_transitions(scalars, phases,
@@ -558,7 +582,9 @@ def format_summary(summary, label):
         lines.append("  Medium parameters:")
         for k in medium_keys:
             name = k.split("/", 1)[1]
-            lines.append(f"    {name}:  {summary[k]:.4f}")
+            plateau = summary.get(f"medium_plateau/{name}")
+            plateau_str = f"  [{plateau}]" if plateau else ""
+            lines.append(f"    {name}:  {summary[k]:.4f}{plateau_str}")
         lines.append("")
 
     # Phase transitions
