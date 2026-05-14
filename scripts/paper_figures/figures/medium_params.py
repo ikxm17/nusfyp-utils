@@ -72,7 +72,7 @@ def plot_beta(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_ylabel("β_D (attenuation)")
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
-    apply_legend(ax, outside=True, ncol=3)
+    apply_legend(ax, outside=True, ncol=3, loc="upper right")
 
     if beta_ylim_max is not None:
         ax.set_ylim(0, beta_ylim_max)
@@ -140,7 +140,7 @@ def plot_binf(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
     ax.set_ylabel("B_∞ (backscatter)")
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
-    apply_legend(ax, outside=True, ncol=3)
+    apply_legend(ax, outside=True, ncol=3, loc="upper right")
 
     if binf_ylim_max is not None:
         ax.set_ylim(0, binf_ylim_max)

@@ -89,7 +89,8 @@ def plot(experiment, output_dir, smooth_window=100, formats=("pdf", "png"),
 
     ax.set_xlabel("Training Step")
     ax.xaxis.set_major_formatter(step_formatter())
-    apply_legend(ax, outside=True, ncol=min(max(len(loss_data), 1), 4))
+    apply_legend(ax, outside=True, ncol=min(max(len(loss_data), 1), 4),
+                 loc="upper right")
 
     short = get_short_label(experiment)
     display = get_display_label(experiment)

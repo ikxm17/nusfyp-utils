@@ -187,8 +187,10 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
         )
     elif outside and _PRESENTATION_MODE:
         # Presentation mode uses savefig.bbox='standard' (fixed canvas) so an
-        # outside legend would be clipped. Place it inside the axes instead.
-        legend_kw.update(loc="best", ncol=ncol)
+        # outside legend would be clipped. Place it inside the axes at the
+        # caller-specified loc instead — uniform placement across the figure
+        # grid in the slide deck depends on the caller picking a fixed corner.
+        legend_kw.update(loc=loc, ncol=ncol)
     else:
         legend_kw.update(loc=loc, ncol=ncol)
     legend_kw.update(kwargs)
