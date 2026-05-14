@@ -176,7 +176,7 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
         handletextpad=0.5,
         columnspacing=1.0,
     )
-    if outside:
+    if outside and not _PRESENTATION_MODE:
         # Place legend below the x-axis label. The xlabel sits around y=-0.15
         # to -0.20 of axes height after tight_layout, so -0.38 keeps the legend
         # clear of the xlabel text across the figure heights we use.
@@ -185,6 +185,10 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
             bbox_to_anchor=(0.5, -0.38),
             ncol=ncol,
         )
+    elif outside and _PRESENTATION_MODE:
+        # Presentation mode uses savefig.bbox='standard' (fixed canvas) so an
+        # outside legend would be clipped. Place it inside the axes instead.
+        legend_kw.update(loc="best", ncol=ncol)
     else:
         legend_kw.update(loc=loc, ncol=ncol)
     legend_kw.update(kwargs)
