@@ -289,13 +289,12 @@ def save_figure(fig, name, output_dir, formats=("pdf", "png")):
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     saved = []
-    # In presentation mode, temporarily override savefig.bbox='tight' set
-    # by apply_style(). 'tight' crops around artists (so figures with no
-    # legend come out shorter than figures with one); 'standard' emits
-    # the full PRESENTATION_FIGSIZE canvas so every tile has identical
-    # pixel dimensions.
-    ctx = (plt.rc_context({"savefig.bbox": "standard"})
-           if _PRESENTATION_MODE else plt.rc_context({}))
+    # Use the default savefig.bbox='tight' set by apply_style() for both modes.
+    # Now that all presentation-mode figures (loss-budget, gaussian-count,
+    # beta_D, B_inf) include an outside legend, the cropped PNGs have
+    # uniform footprints — no longer need the 'standard' override that left
+    # extra whitespace.
+    ctx = plt.rc_context({})
     with ctx:
         for fmt in formats:
             path = output_dir / f"{name}.{fmt}"
