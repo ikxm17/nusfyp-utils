@@ -185,12 +185,12 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
             ncol=ncol,
         )
     elif outside and _PRESENTATION_MODE:
-        # Presentation mode has a fixed canvas with bottom margin sized to
-        # host the legend; -0.32 axes-coords keeps it close to the xlabel
-        # without overshooting the figure bottom.
+        # Presentation mode: legend sits just below the xlabel. Tight-bbox
+        # save crops to content so we want the legend close to the xlabel
+        # (not floating in dead space).
         legend_kw.update(
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.32),
+            bbox_to_anchor=(0.5, -0.22),
             ncol=ncol,
         )
     else:
