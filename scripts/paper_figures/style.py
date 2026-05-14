@@ -77,12 +77,11 @@ def is_presentation_mode():
 
 
 # Fixed canvas dimensions used in presentation mode so every figure
-# tiles identically on a slide grid. Bottom margin is deliberately tall
-# enough to host the outside legend that apply_legend places at
-# bbox_to_anchor=(0.5, -0.38) — every figure reserves the same vertical
-# space whether it has a legend or not, so all PNGs tile identically.
+# tiles identically on a slide grid. Bottom margin is sized so the outside
+# legend (apply_legend places it at bbox_to_anchor=(0.5, -0.20)) fits within
+# the canvas without padding excess whitespace below.
 PRESENTATION_FIGSIZE = (5.0, 3.5)
-PRESENTATION_MARGINS = dict(bottom=0.36, top=0.92, left=0.14, right=0.96)
+PRESENTATION_MARGINS = dict(bottom=0.26, top=0.92, left=0.14, right=0.96)
 
 
 def apply_presentation_layout(fig):
@@ -177,15 +176,21 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
         handletextpad=0.5,
         columnspacing=1.0,
     )
-    if outside:
-        # Place legend below the x-axis label. The xlabel sits around y=-0.15
-        # to -0.20 of axes height after tight_layout (thesis mode) or after
-        # PRESENTATION_MARGINS bottom=0.36 (presentation mode), so -0.38 keeps
-        # the legend clear of the xlabel text in both modes. PRESENTATION_MARGINS
-        # bottom is sized to host the legend without clipping.
+    if outside and not _PRESENTATION_MODE:
+        # Thesis mode uses tight_layout which extends the canvas to fit the
+        # legend; -0.38 axes-coords keeps it clear of the xlabel.
         legend_kw.update(
             loc="upper center",
             bbox_to_anchor=(0.5, -0.38),
+            ncol=ncol,
+        )
+    elif outside and _PRESENTATION_MODE:
+        # Presentation mode has a fixed canvas with bottom margin sized to
+        # host the legend; -0.32 axes-coords keeps it close to the xlabel
+        # without overshooting the figure bottom.
+        legend_kw.update(
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.32),
             ncol=ncol,
         )
     else:
