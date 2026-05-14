@@ -77,11 +77,12 @@ def is_presentation_mode():
 
 
 # Fixed canvas dimensions used in presentation mode so every figure
-# tiles identically on a slide grid. Enough bottom margin for an outside
-# legend even on plots that don't have one -- the empty space keeps all
-# figures at the same inner-axes size.
+# tiles identically on a slide grid. Bottom margin is deliberately tall
+# enough to host the outside legend that apply_legend places at
+# bbox_to_anchor=(0.5, -0.38) — every figure reserves the same vertical
+# space whether it has a legend or not, so all PNGs tile identically.
 PRESENTATION_FIGSIZE = (5.0, 3.5)
-PRESENTATION_MARGINS = dict(bottom=0.26, top=0.88, left=0.14, right=0.96)
+PRESENTATION_MARGINS = dict(bottom=0.36, top=0.92, left=0.14, right=0.96)
 
 
 def apply_presentation_layout(fig):
@@ -176,21 +177,17 @@ def apply_legend(ax, loc="best", ncol=1, outside=False, **kwargs):
         handletextpad=0.5,
         columnspacing=1.0,
     )
-    if outside and not _PRESENTATION_MODE:
+    if outside:
         # Place legend below the x-axis label. The xlabel sits around y=-0.15
-        # to -0.20 of axes height after tight_layout, so -0.38 keeps the legend
-        # clear of the xlabel text across the figure heights we use.
+        # to -0.20 of axes height after tight_layout (thesis mode) or after
+        # PRESENTATION_MARGINS bottom=0.36 (presentation mode), so -0.38 keeps
+        # the legend clear of the xlabel text in both modes. PRESENTATION_MARGINS
+        # bottom is sized to host the legend without clipping.
         legend_kw.update(
             loc="upper center",
             bbox_to_anchor=(0.5, -0.38),
             ncol=ncol,
         )
-    elif outside and _PRESENTATION_MODE:
-        # Presentation mode uses savefig.bbox='standard' (fixed canvas) so an
-        # outside legend would be clipped. Place it inside the axes at the
-        # caller-specified loc instead — uniform placement across the figure
-        # grid in the slide deck depends on the caller picking a fixed corner.
-        legend_kw.update(loc=loc, ncol=ncol)
     else:
         legend_kw.update(loc=loc, ncol=ncol)
     legend_kw.update(kwargs)
